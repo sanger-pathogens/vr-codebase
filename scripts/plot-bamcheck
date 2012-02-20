@@ -11,12 +11,17 @@ use Carp;
 my @remove_me = ();
 
 my $opts = parse_params();
+check_sanity($opts);
 plot_heatmap_qualities($opts);
 plot_qualities($opts);
 plot_isize($opts);
 plot_gc($opts);
 plot_gc_depth($opts);
+plot_acgt_cycles($opts);
 plot_coverage($opts);
+plot_mismatches_per_cycle($opts);
+plot_indel_dist($opts);
+plot_indel_cycles($opts);
 
 # Clean the temporary files
 clean();
@@ -34,8 +39,8 @@ sub error
         "Usage: plot-bamcheck [OPTIONS] file.bam.bc\n",
         "Options:\n",
         "   -k, --keep-files                    Do not remove temporary files.\n",
-        "   -p, --prefix <dir>                  The prefix of output files.\n",
-        "   -r, --ref-stats <file>              Optional reference stats file with expected GC content.\n",
+        "   -p, --prefix <path>                 The output files prefix, add a slash to create new directory.\n",
+        "   -r, --ref-stats <file>              Optional reference stats file with expected GC content (created by the ref-stats script).\n",
         "   -h, -?, --help                      This help message.\n",
         "\n";
 }
@@ -77,11 +82,18 @@ sub plot
     if ( $? ) { error("The command exited with non-zero status $?:\n\t$cmd\n\n"); }
 }
 
-
 sub clean
 {
     my ($opts) = @_;
     for my $file (@remove_me) { unlink $file; }
+}
+
+sub check_sanity
+{
+    my ($opts) = @_;
+    my $nseq = `grep "^SN\tsequences:" $$opts{bamcheck} | sed 's,^.*\\s,,'`;
+    chomp($nseq);
+    if ( !$nseq ) { error("Sanity check failed: no sequences found by bamcheck??\n"); }
 }
 
 sub get_temp_file
@@ -119,15 +131,41 @@ sub get_defaults
 
     my $dir = $gp_file;
     $dir =~ s{/[^/]+$}{};
-    if ( $dir ) { `mkdir -p $dir`; }
+    if ( $dir && $dir ne $gp_file ) { `mkdir -p $dir`; }
 
     return { title=>$title, gp=>$gp_file, img=>$img_fname };
 }
 
+sub has_values
+{
+    my ($opts,@tags) = @_;
+    for my $tag (@tags)
+    {
+        my (@lines) = `cat $$opts{bamcheck} | grep ^$tag`;
+        if ( !@lines ) { return 0; }
+    }
+    return 1;
+}
+
+sub older_than
+{
+    my ($opts,$version) = @_;
+    my ($year,$month,$day) = split(/-/,$version);
+    $version = `head -1 $$opts{bamcheck}`;
+    if ( !($version=~/\((\d+)-(\d+)-(\d+)\)$/) ) { return 1; }
+    if ( $1<$year ) { return 1; }
+    elsif ( $1>$year ) { return 0; }
+    if ( $2<$month ) { return 1; }
+    elsif ( $2>$month ) { return 0; }
+    if ( $3<$day ) { return 1; }
+    return 0;
+}
 
 sub plot_heatmap_qualities
 {
     my ($opts) = @_;
+
+    if ( !has_values($opts,'FFQ','LFQ') ) { return; }
 
     my $args = get_defaults($opts,"$$opts{prefix}quals-hm.png");
     
@@ -142,8 +180,8 @@ sub plot_heatmap_qualities
         
         set palette defined (0 0 0 0, 1 0 0 1, 3 0 1 0, 4 1 0 0, 6 1 1 1)
         
-        max_val = `grep -e ^FFQ -e ^LFQ ] . $$opts{bamcheck} . q[ | cut -f 3- | sed 's,\s\s*,\n,g' | awk '{if($1>max)max=$1}END{print max}'`
-        ncycles = `grep ^FFQ ] . $$opts{bamcheck} . q[ | cut -f 2 | awk '{if($1>max)max=$1}END{print max}'`
+        max_val = `grep -e ^FFQ -e ^LFQ ] . $$opts{bamcheck} . q[ | cut -f 3- | sed 's,\s\s*,\n,g' | awk 'BEGIN{max=0}{if($1>max)max=$1}END{print max}'`
+        ncycles = `grep ^FFQ ] . $$opts{bamcheck} . q[ | cut -f 2 | awk 'BEGIN{max=0}{if($1>max)max=$1}END{print max}'`
         nquals  = `grep '^FFQ[[:space:]]1[[:space:]]' ] . $$opts{bamcheck} . q[ | cut -f 4- | sed 's,\s\s*,\n,g' |wc -l`
         
         set cbrange [0:max_val]
@@ -188,6 +226,8 @@ sub plot_heatmap_qualities
 sub plot_qualities
 {
     my ($opts) = @_;
+
+    if ( !has_values($opts,'FFQ','LFQ') ) { return; }
 
     my $args  = get_defaults($opts,"$$opts{prefix}quals.png");
     my $args2 = get_defaults($opts,"$$opts{prefix}quals2.png");
@@ -267,8 +307,9 @@ sub plot_qualities
     # Create the gnuplot script. Quick solution: the script relies on backticks and unix commands, may be changed in future
     open(my $fh,'>',$$args{gp}) or error("$$args{gp}: $!");
     print $fh qq[
-        set terminal png size 600,500 truecolor font "DejaVuSansMono,9"
+        set terminal png size 600,400 truecolor font "DejaVuSansMono,9"
         set output "$$args{img}"
+        set grid xtics ytics y2tics back lc rgb "#aaaaaa"
         set ylabel "Quality" 
         set xlabel "Cycle"
         set yrange [0:$max_qual]
@@ -310,6 +351,7 @@ sub plot_qualities
         reset
         set terminal png size 600,600 truecolor font "DejaVuSansMono,9"
         set output "$$args3{img}"
+        set grid back lc rgb "#aaaaaa"
         set multiplot
         set rmargin 0
         set lmargin 0
@@ -368,30 +410,38 @@ sub plot_isize
 {
     my ($opts) = @_;
 
+    if ( !has_values($opts,'IS') ) { return; }
+
     my $args = get_defaults($opts,"$$opts{prefix}insert-size.png");
     
-    my $isize_max = `grep ^IS  $$opts{bamcheck} | cut -f 2- | awk 'BEGIN{max=0;isize=0}{if(\$2>max){max=\$2;isize=\$1}}END{print isize}'`;
-    my $isize_cnt = `grep ^IS  $$opts{bamcheck} | cut -f 2- | awk 'BEGIN{max=0;isize=0}{if(\$2>max){max=\$2;isize=\$1}}END{print max}'`;
+    my $out = `grep ^IS  $$opts{bamcheck} | cut -f 2- | awk 'BEGIN{max=0;isize=0}{if(\$2>max){max=\$2;isize=\$1}}END{print isize,max}'`;
+    my ($isize_max,$isize_cnt) = split(/\s+/,$out);
     
     return if(  (!(defined $isize_max)) || (!(defined $isize_cnt)) ||  ($isize_max <= 0) || ($isize_cnt <=0));
     
     # Create the gnuplot script. Quick solution: the script relies on backticks and unix commands, may be changed in future
     open(my $fh,'>',$$args{gp}) or error("$$args{gp}: $!");
     print $fh q[
-        set terminal png size 600,500 truecolor font "DejaVuSansMono,9"
+        set terminal png size 600,400 truecolor font "DejaVuSansMono,9"
         set output "] . $$args{img} . q["
         
-        unset key
+        #unset key
+        set rmargin 5
         
         isize_max = ] . $isize_max . q[
         isize_cnt = ] . $isize_cnt . q[
         set label sprintf("%d",isize_max) at isize_max+10,isize_cnt
         
-        set ylabel "Frequency" 
-        set xlabel "Insert Size"
+        set grid back lc rgb "#aaaaaa"
+        set ylabel  "Number of pairs"
+        set xlabel  "Insert Size"
         
-        set title "] . $$args{title} . q["
-        plot '< grep ^IS ] . $$opts{bamcheck} . q[ | cut -f 2-' with lines
+        set title "] . $$args{title} . qq["
+        plot \\
+            '< grep ^IS $$opts{bamcheck} | cut -f 2,3' with lines lc rgb 'black' title 'All pairs', \\
+            '< grep ^IS $$opts{bamcheck} | cut -f 2,4' with lines title 'Inward', \\
+            '< grep ^IS $$opts{bamcheck} | cut -f 2,5' with lines title 'Outward', \\
+            '< grep ^IS $$opts{bamcheck} | cut -f 2,6' with lines title 'Other'
     ];
     close($fh);
 
@@ -402,6 +452,8 @@ sub plot_isize
 sub plot_gc
 {
     my ($opts) = @_;
+
+    if ( !has_values($opts,'GCF','GCL') ) { return; }
 
     my $args = get_defaults($opts,"$$opts{prefix}gc-content.png");
 
@@ -425,37 +477,38 @@ sub plot_gc
         $ref_stats = qq['$tmp_file' with lines lt 0 title 'Reference', ];
     }
 
-    my $gcf_max = `grep ^GCF  $$opts{bamcheck}  | cut -f 2- | awk '{if(\$2>max)max=\$2}END{print max}'`;
+    my $gcf_max = `grep ^GCF  $$opts{bamcheck}  | cut -f 2- | awk 'BEGIN{max=0}{if(\$2>max)max=\$2}END{print max}'`;
     
     # if its single ended dont plot the reverse reads
     my $gcl_max_plot ='';
     my $plot_reverse_str = '';
-    my $gcl_max = `grep ^GCL  $$opts{bamcheck}  | cut -f 2- | awk '{if(\$2>max)max=\$2}END{print max}'`;
+    my $gcl_max = `grep ^GCL  $$opts{bamcheck}  | cut -f 2- | awk 'BEGIN{max=0}{if(\$2>max)max=\$2}END{print max}'`;
     chomp $gcl_max;
-    if((defined $gcl_max) && $gcl_max ne "")
+    if ( $gcl_max )
     {
-      $gcl_max_plot = 'gcl_max = ' . $gcl_max ;
-      $plot_reverse_str = q[, '< grep ^GCL ] . $$opts{bamcheck} . q[ | cut -f 2-' using 1:($2/gcl_max) with lines title 'Last fragments' lc 2 ];
+        $gcl_max_plot = 'gcl_max = ' . $gcl_max ;
+        $plot_reverse_str = q[, '< grep ^GCL ] . $$opts{bamcheck} . q[ | cut -f 2-' using 1:($2/gcl_max) smooth csplines with lines title 'Last fragments' lc 2 ];
     }
     
     # Create the gnuplot script. Quick solution: the script relies on backticks and unix commands, may be changed in future
     open(my $fh,'>',$$args{gp}) or error("$$args{gp}: $!");
     print $fh q[
-        set terminal png size 600,500 truecolor font "DejaVuSansMono,9"
+        set terminal png size 600,400 truecolor font "DejaVuSansMono,9"
         set output "] . $$args{img} . q["
         
         gcf_max = ] . $gcf_max . q[
         ] . $gcl_max_plot . q[
 
-        peak = `grep ^GC\[FL\] ] . $$opts{bamcheck} . q[ | cut -f 2- | awk '{if($2>max){max=$2;pos=$1}}END{print pos}'`
+        peak = `grep ^GC\[FL\] ] . $$opts{bamcheck} . q[ | cut -f 2- | awk 'BEGIN{pos=0}{if($2>max){max=$2;pos=$1}}END{print pos}'`
         set label sprintf("%.1f",peak) at peak,1 front offset 1,0
 
+        set grid back lc rgb "#aaaaaa"
         set ylabel "Normalized Frequency" 
         set xlabel "GC Content [%]"
         set yrange [0:1.1]
         
         set title "] . $$args{title} . q["
-        plot ] . $ref_stats . q[ '< grep ^GCF ] . $$opts{bamcheck} . q[ | cut -f 2-' using 1:($2/gcf_max) with lines lc 1 title 'First fragments']. $plot_reverse_str. q[
+        plot ] . $ref_stats . q[ '< grep ^GCF ] . $$opts{bamcheck} . q[ | cut -f 2-' using 1:($2/gcf_max) smooth csplines with lines lc 1 title 'First fragments']. $plot_reverse_str. q[
     ];
     close($fh);
 
@@ -466,6 +519,8 @@ sub plot_gc
 sub plot_gc_depth
 {
     my ($opts) = @_;
+
+    if ( !has_values($opts,'GCD') ) { return; }
 
     my $args = get_defaults($opts,"$$opts{prefix}gc-depth.png");
 
@@ -519,6 +574,8 @@ sub plot_coverage
 {
     my ($opts) = @_;
 
+    if ( !has_values($opts,'COV') ) { return; }
+
     my $args = get_defaults($opts,"$$opts{prefix}coverage.png");
 
     my @values = grep { chomp } `cat $$opts{bamcheck} | grep ^COV | cut -f 4`;
@@ -526,10 +583,9 @@ sub plot_coverage
 
     open(my $fh,'>',$$args{gp}) or error("$$args{gp}: $!");
     print $fh q[
-        set terminal png size 600,500 truecolor font "DejaVuSansMono,9"
+        set terminal png size 600,400 truecolor font "DejaVuSansMono,9"
         set output "] . $$args{img} . q["
-        
-        #set logscale y
+
         set grid back lc rgb "#aaaaaa"
         set ylabel "Number of mapped bases" 
         set xlabel "Coverage"
@@ -539,6 +595,192 @@ sub plot_coverage
         
         plot '< grep ^COV ] . $$opts{bamcheck} . q[ | cut -f 3,4' with boxes notitle
 
+    ];
+    close($fh);
+
+    plot($$args{gp});
+}
+
+sub plot_mismatches_per_cycle_old
+{
+    my ($opts) = @_;
+
+    my $args = get_defaults($opts,"$$opts{prefix}mism-per-cycle.png");
+    my ($nquals)  = `grep ^MPC $$opts{bamcheck} | awk '\$2==1' | sed 's,\\t,\\n,g' | wc -l`;
+    my ($ncycles) = `grep ^MPC $$opts{bamcheck} | wc -l`;
+    chomp($nquals);
+    chomp($ncycles);
+    $nquals--;
+    $ncycles--;
+    my @gr0_15  = (2..17);
+    my @gr16_30 = (18..32);
+    my @gr31_n  = (33..$nquals);
+    my $gr0_15  = '$'. join('+$',@gr0_15); 
+    my $gr16_30 = '$'. join('+$',@gr16_30); 
+    my $gr31_n  = '$'. join('+$',@gr31_n); 
+
+    open(my $fh,'>',$$args{gp}) or error("$$args{gp}: $!");
+    print $fh q[
+        set terminal png size 600,400 truecolor font "DejaVuSansMono,9"
+        set output "] . $$args{img} . q["
+        
+        set key left top
+        set style data histogram
+        set style histogram rowstacked
+
+        set grid back lc rgb "#aaaaaa"
+        set ylabel "Number of mismatches" 
+        set xlabel "Read Cycle"
+        set style fill solid border -1
+        set title "] . $$args{title} . qq["
+        set xrange [-1:$ncycles]
+        
+        plot '< grep ^MPC $$opts{bamcheck} | cut -f 2-' using ($gr31_n) ti 'Base Quality>30', '' using ($gr16_30) ti '30>=Q>15', '' using ($gr0_15) ti '15>=Q'
+    ];
+    close($fh);
+
+    plot($$args{gp});
+}
+
+sub plot_mismatches_per_cycle
+{
+    my ($opts) = @_;
+
+    if ( !has_values($opts,'MPC') ) { return; }
+    if ( older_than($opts,'2012-02-06') ) { plot_mismatches_per_cycle_old($opts); }
+
+    my $args = get_defaults($opts,"$$opts{prefix}mism-per-cycle.png");
+    my ($nquals)  = `grep ^MPC $$opts{bamcheck} | awk '\$2==1' | sed 's,\\t,\\n,g' | wc -l`;
+    my ($ncycles) = `grep ^MPC $$opts{bamcheck} | wc -l`;
+    chomp($nquals);
+    chomp($ncycles);
+    $nquals--;
+    $ncycles--;
+    my @gr0_15  = (3..18);
+    my @gr16_30 = (19..33);
+    my @gr31_n  = (34..$nquals);
+    my $gr0_15  = '$'. join('+$',@gr0_15); 
+    my $gr16_30 = '$'. join('+$',@gr16_30); 
+    my $gr31_n  = '$'. join('+$',@gr31_n); 
+
+    open(my $fh,'>',$$args{gp}) or error("$$args{gp}: $!");
+    print $fh q[
+        set terminal png size 600,400 truecolor font "DejaVuSansMono,9"
+        set output "] . $$args{img} . q["
+        
+        set key left top
+        set style data histogram
+        set style histogram rowstacked
+
+        set grid back lc rgb "#aaaaaa"
+        set ylabel "Number of mismatches" 
+        set xlabel "Read Cycle"
+        set style fill solid border -1
+        set title "] . $$args{title} . qq["
+        set xrange [-1:$ncycles]
+        
+        plot '< grep ^MPC $$opts{bamcheck} | cut -f 2-' using ($gr31_n) ti 'Base Quality>30', \\
+            '' using ($gr16_30) ti '30>=Q>15', \\
+            '' using ($gr0_15) ti '15>=Q', \\
+            '' using (\$2) ti "N's"
+    ];
+    close($fh);
+
+    plot($$args{gp});
+}
+
+sub plot_acgt_cycles
+{
+    my ($opts) = @_;
+
+    if ( !has_values($opts,'GCC') ) { return; }
+
+    my $args = get_defaults($opts,"$$opts{prefix}acgt-cycles.png");
+
+    open(my $fh,'>',$$args{gp}) or error("$$args{gp}: $!");
+    print $fh q[
+        set terminal png size 600,400 truecolor font "DejaVuSansMono,9"
+        set output "] . $$args{img} . q["
+
+        set style line 1 linetype 1  linecolor rgb "red"
+        set style line 2 linetype 2  linecolor rgb "black"
+        set style line 3 linetype 3  linecolor rgb "green"
+        set style line 4 linetype 4  linecolor rgb "blue"
+        set style increment user
+        
+        set grid back lc rgb "#aaaaaa"
+        set ylabel "Base content [%]" 
+        set xlabel "Read Cycle"
+        set yrange [0:100]
+        set title "] . $$args{title} . qq["
+        
+        plot '< grep ^GCC $$opts{bamcheck} | cut -f 2-' using 1:2 w l ti 'A', '' using 1:3 w l ti 'C', '' using 1:4 w l ti 'G', '' using 1:5 w l ti 'T'
+    ];
+    close($fh);
+
+    plot($$args{gp});
+}
+
+sub plot_indel_dist
+{
+    my ($opts) = @_;
+
+    if ( !has_values($opts,'ID') ) { return; }
+
+    my $args = get_defaults($opts,"$$opts{prefix}indel-dist.png");
+
+    open(my $fh,'>',$$args{gp}) or error("$$args{gp}: $!");
+    print $fh q[
+        set terminal png size 600,400 truecolor font "DejaVuSansMono,9"
+        set output "] . $$args{img} . q["
+
+        set style line 1 linetype 1  linecolor rgb "red"
+        set style line 2 linetype 2  linecolor rgb "black"
+        set style line 3 linetype 3  linecolor rgb "green"
+        set style line 4 linetype 4  linecolor rgb "blue"
+        set style increment user
+        
+        set grid back lc rgb "#aaaaaa"
+        set ylabel "Indel count [log]" 
+        set xlabel "Indel length"
+        set y2label "Insertions/Deletions ratio"
+        set log y
+        set y2tics nomirror
+        set ytics nomirror
+        set title "] . $$args{title} . qq["
+        
+        plot '< grep ^ID $$opts{bamcheck} | cut -f 2-' using 1:2 w l ti 'Insertions', '' using 1:3 w l ti 'Deletions', '' using 1:(\$2/\$3) axes x1y2 w l ti "Insertions/Deletions"
+    ];
+    close($fh);
+
+    plot($$args{gp});
+}
+
+sub plot_indel_cycles
+{
+    my ($opts) = @_;
+
+    if ( !has_values($opts,'IC') ) { return; }
+
+    my $args = get_defaults($opts,"$$opts{prefix}indel-cycles.png");
+
+    open(my $fh,'>',$$args{gp}) or error("$$args{gp}: $!");
+    print $fh q[
+        set terminal png size 600,400 truecolor font "DejaVuSansMono,9"
+        set output "] . $$args{img} . q["
+
+        set style line 1 linetype 1  linecolor rgb "red"
+        set style line 2 linetype 2  linecolor rgb "black"
+        set style line 3 linetype 3  linecolor rgb "green"
+        set style line 4 linetype 4  linecolor rgb "blue"
+        set style increment user
+        
+        set grid back lc rgb "#aaaaaa"
+        set ylabel "Indel count" 
+        set xlabel "Read Cycle"
+        set title "] . $$args{title} . qq["
+        
+        plot '< grep ^IC $$opts{bamcheck} | cut -f 2-' using 1:2 w l ti 'Insertions', '' using 1:3 w l ti 'Deletions'
     ];
     close($fh);
 
