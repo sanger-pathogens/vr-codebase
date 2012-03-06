@@ -34,10 +34,10 @@ sub error
         croak @msg;
     }
     die
-        "About: Convenience tool for concatenating VCF files. In the basic mode it does not \n",
-        "   do anything fancy except for a sanity check that all files have the same columns.\n",
-        "   When run with the -s option, it will perform a partial merge sort, looking at\n",
-        "   a limited number of open jobs simultaneously.\n",
+        "About: Convenience tool for concatenating VCF files (e.g. VCFs split by chromosome).\n",
+        "   In the basic mode it does not do anything fancy except for a sanity check that all\n",
+        "   files have the same columns.  When run with the -s option, it will perform a partial\n",
+        "   merge sort, looking at limited number of open files simultaneously.\n",
         "Usage: vcf-concat [OPTIONS] A.vcf.gz B.vcf.gz C.vcf.gz > out.vcf\n",
         "Options:\n",
         "   -c, --check-columns              Do not concatenate, only check if the columns agree.\n",
@@ -85,10 +85,27 @@ sub check_columns
 
         if ( @columns )
         {
+            my $different_order;
+            my $different_columns;
             if ( @columns != @{$$vcf{columns}} ) { warn("Different number of columns in [$file].\n"); }
             for (my $i=0; $i<@columns; $i++)
             {
-                if ( $$vcf{columns}[$i] ne $columns[$i] ) { warn("The column names do not agree in [$file].\n"); last; }
+                if ( $$vcf{columns}[$i] ne $columns[$i] ) 
+                { 
+                    if ( !exists($$vcf{has_column}{$columns[$i]}) )
+                    {
+                        warn("The column names do not match; the column \"$columns[$i]\" no present in [$file].\n"); 
+                        $different_columns = $columns[$i];
+                    }
+                    elsif ( !defined $different_order )
+                    {
+                        $different_order = $columns[$i];
+                    }
+                }
+            }
+            if ( defined $different_order && !defined $different_columns )
+            {
+                warn("The columns ordered differently in [$file]. Use vcf-shuffle-cols to reorder.\n");
             }
         }
         else
@@ -110,10 +127,25 @@ sub concat
 
         if ( @columns )
         {
+            my $different_order;
             if ( @columns != @{$$vcf{columns}} ) { error("Different number of columns in [$file].\n"); }
             for (my $i=0; $i<@columns; $i++)
             {
-                if ( $$vcf{columns}[$i] ne $columns[$i] ) { error("The column names do not agree in [$file].\n"); }
+                if ( $$vcf{columns}[$i] ne $columns[$i] )
+                {
+                    if ( !exists($$vcf{has_column}{$columns[$i]}) )
+                    {
+                        error("The column names do not match; the column \"$columns[$i]\" no present in [$file].\n");
+                    }
+                    elsif ( !defined $different_order )
+                    {
+                        $different_order = $columns[$i];
+                    }
+                }
+            }
+            if ( defined $different_order )
+            {
+                error("The columns ordered differently in [$file]. Use vcf-shuffle-cols to reorder.\n");
             }
         }
         else
