@@ -369,6 +369,12 @@ sub get_jobs
                 next;
             }
             
+            if ( $action=~/^__VRTrack_BamImprovement_Pathogens__$/ )
+            {
+                get_improvement_jobs_from_vrtrack(\@jobs,$config_fname,$config_mtime,$config_data);
+                next;
+            }
+
             if ( $action=~/^__PathTrack_Import__$/ )
             {
                 get_pathimport_jobs_from_vrtrack(\@jobs,$config_fname,$config_mtime,$config_data);

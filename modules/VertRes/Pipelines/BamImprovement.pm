@@ -385,6 +385,11 @@ sub new {
     return $self;
 }
 
+sub plain_new {
+    my ($class, @args) = @_;
+    return $class->SUPER::new(%options, actions => $actions, @args);
+}
+
 =head2 realign_requires
 
  Title   : realign_requires

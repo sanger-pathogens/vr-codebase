@@ -75,7 +75,7 @@ my $fsu = VertRes::Utils::FileSystem->new();
                                  individual methods with the DBSNP option)
            covs      => [] (as per set_covs())
            bs        => [] (as per set_b())
-           build     => NCBI36|NCBI37|NCBIM37 (default NCBI37: sets defaults for
+           build     => NCBI36|NCBI37|NCBIM37|NONHUMAN (default NCBI37: sets defaults for
                         reference, dbsnp, covs and bs as appropriate for the
                         build; overriden by the above 4 options if they are set
                         manually)
@@ -133,6 +133,9 @@ sub new {
         #               'pilot1_YRI,VCF,'.File::Spec->catfile($ENV{GATK_RESOURCES}, 'vcfs', 'YRI.2and3_way.vcf')];
     }
     elsif ($build eq 'NCBIM37') {
+        # no defaults yet, could set them up if desired...
+    }
+    elsif ($build eq 'NONHUMAN') {
         # no defaults yet, could set them up if desired...
     }
     elsif ($build) {
