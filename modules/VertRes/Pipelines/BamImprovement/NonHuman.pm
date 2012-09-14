@@ -32,7 +32,6 @@ data =>
           slx_mapper => 'smalt',
           reference => '/lustre/scratch108/pathogen/pathpipe/refs/Streptococcus/pneumoniae_Taiwan19F-14/Streptococcus_pneumoniae_Taiwan19F-14_v1.fa',
           assembly_name => 'Streptococcus_pneumoniae_Taiwan19F-14_v1',
-          do_index => 1,
           
      },
 
@@ -43,8 +42,7 @@ in order to adjust the BamImprovement pipeline for non-human datasets. A few fun
 class have been taken over completely, while others are either overriden or omitted all together.
 
 IMPORTANT: The recalibrate task in this subclass DOES NOT carry out any actual BAM recalibration. It just takes 
-the output of its predecessor task ("sort") fakes this as its own output. 
-This was done to avoid having a mess subclassing BamImprovement (i.e. to keep other interdependent tasks happy). 
+the output of its predecessor task ("sort") presents this as its own output.
 
 =head1 AUTHORs
 
@@ -132,14 +130,6 @@ our %options = (slx_mapper => 'bwa',
                 do_index => 0,
                 do_cleanup => 1);
 
-
-#sub new {
-#    my ($class, @args) = @_;
-    
-#    my $self = $class->SUPER::new(%options, actions => \@actions, @args);
-
-#}
-
 =head2 new
 
  Title   : new
@@ -202,9 +192,7 @@ sub new {
     $self->{mapper_class} = $hu->{mapper_class};
     $self->{mapper_obj} = $hu->{mapper_obj};
     $self->{mapstats_obj} = $hu->{mapstats_obj};
-    
     $self->{release_date} = "$time{'yyyymmdd'}"; 
-
     
     $self->{io} = VertRes::IO->new;
     $self->{fsu} = VertRes::Utils::FileSystem->new;
@@ -213,7 +201,6 @@ sub new {
     $self->{header_changes}->{RG}->{match_db} ||= 0;
     $self->{header_changes}->{SQ}->{remove_unique} ||= 0;
     $self->{header_changes}->{SQ}->{from_dict} ||= '';
-    
     
     return $self;
 }
@@ -275,6 +262,7 @@ sub realign {
         my $working_bam = $rel_bam;
         $working_bam =~ s/\.bam$/.working.bam/;
         my $done_file = $self->{fsu}->catfile($lane_path, '.realign_complete_'.$base);
+        my $intervals_file = $in_bam . ".realignment.target.intervals";
         
         # run realign in an LSF call to a temp script
         my $script_name = $self->{fsu}->catfile($lane_path, $self->{prefix}."realign_$base.pl");
@@ -290,15 +278,15 @@ my \$in_bam = '$in_bam';
 my \$rel_bam = '$rel_bam';
 my \$working_bam = '$working_bam';
 my \$done_file = '$done_file';
-
+my \$intervals_file = '$intervals_file';
 
 my \$gatk = VertRes::Wrapper::GATK->new(verbose => $verbose,
                                         java_memory => $java_mem,
                                         reference => '$self->{reference}',
                                         build => 'NONHUMAN');
 
-\$gatk->realignment_targets('$in_bam', '$in_bam.out.intervals');
-my \$intervals_file = '$in_bam.realignment.target.intervals';
+\$gatk->realignment_targets('$in_bam', '$intervals_file');
+
                                         
 # do the realignment, generating an uncompressed, name-sorted bam
 unless (-s \$rel_bam) {
@@ -367,14 +355,12 @@ sub recalibrate_requires {
     return \@requires;
 }
 
-#IMPORTANT: The recalibrate task in this subclass does NOT recalibrate!
-
 =head2 recalibrate
 
  Title   : recalibrate
  Usage   : $obj->recalibrate('/path/to/lane', 'lock_filename');
  Function: DOES NOT actually recalibrate (see the DESCRIPTION pod on top of the file). 
-           Here we basically pretent that the result of the precivious task is output of
+           Here we basically pretend that the result of the precivious task is output of
            the recalibrate. This keeps the parent class and other tasks happy without a lot of rewrite. 
  Returns : $VertRes::Pipeline::Yes or No, depending on if the action completed.
  Args    : lane path, name of lock file to use

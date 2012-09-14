@@ -385,6 +385,16 @@ sub new {
     return $self;
 }
 
+=head2 plain_new
+
+ Title   : plain_new
+ Usage   : my $obj = VertRes::Pipeline::BamImprovement->plain_new(%options, actions => \@actions, @args);
+ Function: We have written this method to make subclassing this class easier for non-human datasets
+ Returns : A VertRes::Pipeline object
+ Args    : See VertRes::Pipeline documentation
+
+=cut
+
 sub plain_new {
     my ($class, @args) = @_;
     return $class->SUPER::new(%options, actions => $actions, @args);
