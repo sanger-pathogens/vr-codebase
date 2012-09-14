@@ -1,16 +1,16 @@
 =head1 NAME
 
-VertRes::Pipelines::BamImprovement::Pathogens - pipeline for improving bam files prior to calling in non-human data
+VertRes::Pipelines::BamImprovement::NonHuman - pipeline for improving bam files prior to calling in non-human data
 
 =head1 SYNOPSIS
 
 # make the config files, which specifies the details for connecting to the
 # VRTrack g1k-meta database and the data roots:
-echo '__VRTrack_BamImprovement_Pathogens__ bamimprovement.conf' > bamimprovement.pipeline
+echo '__VRTrack_BamImprovement_NonHuman__ bamimprovement.conf' > bamimprovement.pipeline
 
 # where bamimprovement.conf contains:
 root    => '/abs/path/to/root/data/dir',
-module  => 'VertRes::Pipelines::BamImprovement::Pathogens',
+module  => 'VertRes::Pipelines::BamImprovement::NonHuman',
 prefix  => '_',
 
 db =>
@@ -32,6 +32,7 @@ data =>
           slx_mapper => 'smalt',
           reference => '/lustre/scratch108/pathogen/pathpipe/refs/Streptococcus/pneumoniae_Taiwan19F-14/Streptococcus_pneumoniae_Taiwan19F-14_v1.fa',
           assembly_name => 'Streptococcus_pneumoniae_Taiwan19F-14_v1',
+          do_index => 1,
           
      },
 
@@ -51,7 +52,7 @@ path-help@sanger.ac.uk
 
 =cut
 
-package VertRes::Pipelines::BamImprovement::Pathogens;
+package VertRes::Pipelines::BamImprovement::NonHuman;
 
 use strict;
 use warnings;
@@ -72,29 +73,31 @@ use LSF;
 
 
 our @actions = ( 
-                 #Override the parent methods
+                 #Override parent methods (except for "provides")
                  { name     => 'realign',
                    action   => \&realign,
                    requires => \&realign_requires, 
                    provides => \&VertRes::Pipelines::BamImprovement::realign_provides },
                    
-                 #Override the parent methods
+                 #Inherit parent methods
                  { name     => 'sort',
                    action   => \&VertRes::Pipelines::BamImprovement::sort,
                    requires => \&VertRes::Pipelines::BamImprovement::sort_requires, 
                    provides => \&VertRes::Pipelines::BamImprovement::sort_provides },
                    
-                 #Override the parent methods (IMPORTANT: No actual recalibration here. See the DESCRIPTION pod) 
+                 #Override parent methods (IMPORTANT: No actual recalibration here! See the DESCRIPTION pod) 
                  { name     => 'recalibrate',
                    action   => \&recalibrate,
                    requires => \&recalibrate_requires, 
-                   provides => \&recalibrate_provides },                   
-                   
-                 #Inherit the parent methods for all of the tasks below                   
+                   provides => \&VertRes::Pipelines::BamImprovement::recalibrate_provides },                   
+
+                 #Override parent's calmd                                            
                  { name     => 'calmd',
-                   action   => \&VertRes::Pipelines::BamImprovement::calmd,
+                   action   => \&calmd,
                    requires => \&VertRes::Pipelines::BamImprovement::calmd_requires, 
                    provides => \&VertRes::Pipelines::BamImprovement::calmd_provides },
+                   
+                  #Inherit parent methods for all of the tasks below:         
                  { name     => 'rewrite_header',
                    action   => \&VertRes::Pipelines::BamImprovement::rewrite_header,
                    requires => \&VertRes::Pipelines::BamImprovement::rewrite_header_requires, 
@@ -140,9 +143,9 @@ our %options = (slx_mapper => 'bwa',
 =head2 new
 
  Title   : new
- Usage   : my $obj = VertRes::Pipelines::BamImprovement::Pathogens->new(lane => '/path/to/lane');
- Function: Create a new VertRes::Pipelines::BamImprovement::Pathogens object;
- Returns : VertRes::Pipelines::BamImprovement::Pathogens object
+ Usage   : my $obj = VertRes::Pipelines::BamImprovement::NonHuman->new(lane => '/path/to/lane');
+ Function: Create a new VertRes::Pipelines::BamImprovement::NonHuman object;
+ Returns : VertRes::Pipelines::BamImprovement::NonHuman object
  Args    : 
            reference => '/path/to/ref.fa' (no default, either this or the
                         male_reference and female_reference pair of args must be
@@ -227,8 +230,10 @@ sub new {
 
 sub realign_requires {
     my $self = shift;
-      
+    return [] if ($self->{extract_intervals_only});
+    
     return [ @{$self->{in_bams}}, $self->{reference} ];
+    
 }
 
 =head2 realign
@@ -293,7 +298,7 @@ my \$gatk = VertRes::Wrapper::GATK->new(verbose => $verbose,
                                         build => 'NONHUMAN');
 
 \$gatk->realignment_targets('$in_bam', '$in_bam.out.intervals');
-my \$intervals_file = '$in_bam.out.intervals';
+my \$intervals_file = '$in_bam.realignment.target.intervals';
                                         
 # do the realignment, generating an uncompressed, name-sorted bam
 unless (-s \$rel_bam) {
@@ -349,6 +354,7 @@ exit;
 
 sub recalibrate_requires {
     my ($self, $lane_path) = @_;
+    return [] if ($self->{extract_intervals_only});
       
     # we need bams
     my @requires;
@@ -361,35 +367,15 @@ sub recalibrate_requires {
     return \@requires;
 }
 
-=head2 recalibrate_provides
-
- Title   : recalibrate_provides
- Usage   : my $provided_files = $obj->recalibrate_provides('/path/to/lane');
- Function: DOES NOT RECALIBRATE. Added to this class to make subclassing BamImprovement less painful.
- Returns : array ref of file names
- Args    : lane path
-
-=cut
-
-sub recalibrate_provides {
-    my ($self, $lane_path) = @_;
-    
-    my @provides;
-    foreach my $in_bam (@{$self->{in_bams}}) {
-        my $base = basename($in_bam);
-        push(@provides, '.recalibrate_complete_'.$base);
-    }
-    
-    return \@provides;
-}
-
 #IMPORTANT: The recalibrate task in this subclass does NOT recalibrate!
 
 =head2 recalibrate
 
  Title   : recalibrate
  Usage   : $obj->recalibrate('/path/to/lane', 'lock_filename');
- Function: DOES NOT actually recalibrate (see the DESCRIPTION pod on top of the file)
+ Function: DOES NOT actually recalibrate (see the DESCRIPTION pod on top of the file). 
+           Here we basically pretent that the result of the precivious task is output of
+           the recalibrate. This keeps the parent class and other tasks happy without a lot of rewrite. 
  Returns : $VertRes::Pipeline::Yes or No, depending on if the action completed.
  Args    : lane path, name of lock file to use
 
@@ -434,6 +420,67 @@ exit;
     
     return $self->{No};
 
+}
+
+
+=head2 calmd
+
+ Title   : calmd
+ Usage   : $obj->calmd('/path/to/lane', 'lock_filename');
+ Function: We extend parents's calmd a bit here. Specifically, We have added a bit code 
+           to make sure that the BAM resulting from calmd is indexed right away.
+ Returns : $VertRes::Pipeline::Yes or No, depending on if the action completed.
+ Args    : lane path, name of lock file to use
+
+=cut
+
+sub calmd {
+    my ($self, $lane_path, $action_lock) = @_;
+    
+    my $orig_bsub_opts = $self->{bsub_opts};
+    $self->{bsub_opts} = '-q normal -M1000000 -R \'select[mem>1000] rusage[mem=1000]\'';
+    
+    my $e = $self->{calmde} ? 'e => 1' : 'e => 0';
+    
+    foreach my $in_bam (@{$self->{in_bams}}) {
+        my $base = basename($in_bam);
+        my (undef, undef, $recal_bam, $final_bam) = $self->_bam_name_conversion($in_bam);
+        
+        my $bam_index = "$final_bam.bai";
+        next if -s $bam_index;
+        
+        # run calmd in an LSF call to a temp script
+        my $script_name = $self->{fsu}->catfile($lane_path, $self->{prefix}."calmd_$base.pl");
+        
+        open(my $scriptfh, '>', $script_name) or $self->throw("Couldn't write to temp script $script_name: $!");
+        print $scriptfh qq{
+use strict;
+use VertRes::Wrapper::samtools;
+
+my \$in_bam = '$recal_bam';
+my \$final_bam = '$final_bam';
+
+# run calmd
+unless (-s \$final_bam) {
+    my \$samtools = VertRes::Wrapper::samtools->new(verbose => 1);
+    \$samtools->calmd_and_check(\$in_bam, '$self->{reference}', \$final_bam, r => 1, b => 1, $e);
+    \$samtools->run_status() >= 1 || die "calmd failed\n";
+    \$samtools->index(qq{$final_bam}, qq{$bam_index});
+    \$samtools->run_status >= 1 || die "Failed to create $bam_index";
+}
+
+exit;
+        };
+        close $scriptfh;
+        
+        my $job_name = $self->{prefix}.'calmd_'.$base;
+        $self->archive_bsub_files($lane_path, $job_name);
+        
+        LSF::run($action_lock, $lane_path, $job_name, $self, qq{perl -w $script_name});
+    }
+    
+    $self->{bsub_opts} = $orig_bsub_opts;
+    return $self->{No};
 }
 
 1;
