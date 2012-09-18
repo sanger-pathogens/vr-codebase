@@ -360,8 +360,7 @@ sub recalibrate_requires {
  Title   : recalibrate
  Usage   : $obj->recalibrate('/path/to/lane', 'lock_filename');
  Function: DOES NOT actually recalibrate (see the DESCRIPTION pod on top of the file). 
-           Here we basically pretend that the result of the precivious task is output of
-           the recalibrate. This keeps the parent class and other tasks happy without a lot of rewrite. 
+           Here we present the output of the previous task as the output of this task.
  Returns : $VertRes::Pipeline::Yes or No, depending on if the action completed.
  Args    : lane path, name of lock file to use
 
