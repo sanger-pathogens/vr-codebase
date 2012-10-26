@@ -1728,7 +1728,42 @@ sub is_finished {
         # for now, don't delete the previous bam (we might want it?),
     }
     elsif ($action->{name} eq 'cleanup' || $action->{name} eq 'update_db') {
+  
+        #In pathogen-informatics (nonhuman) pipelines, we clean up the 
+        #original input bam files (*.pe.markdup.bam and *.raw.sorted.bam), 
+        #and keep only the improved ones. We will create a softlink to the improved 
+        #bam and use older BAM file names (*.raw.sorted.bam) for compatibility reasons
+          
+        if ( defined $self->{nonHuman} ) {
+     
+            CLEAN_UP_LOOP: 
+            foreach my $in_bam (@{$self->{in_bams}}) { 
+
+                my (undef, undef, undef, $calmd_bam) = $self->_bam_name_conversion($in_bam);
+                my $link_target = readlink $in_bam;
+                
+                next CLEAN_UP_LOOP if (defined $link_target and $link_target =~ /.realigned.sorted.recal.calmd.bam/);
+                
+                #removes the (non-improved) BAM file  
+                if ( defined $link_target ) {
+                    unlink($link_target);
+                    unlink($link_target . ".bai");
+                }
+                
+                #removes $in_bam which is a softlink to the (non-improved) old BAM file
+                unlink($in_bam);
+                unlink($in_bam . ".bai"); 
+                
+                #creates a softlink with the old BAM file name ($in_bam) which points to 
+                #the freshly improved BAM file ($calmd_bam)
+                symlink($calmd_bam, $in_bam);
+                symlink($calmd_bam. ".bai", $in_bam. ".bai");
+
+            }
+        }
+        
         return $self->{No};
+        
     }
     
     return $self->SUPER::is_finished($lane_path, $action);

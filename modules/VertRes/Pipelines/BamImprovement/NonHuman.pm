@@ -158,6 +158,8 @@ sub new {
     
     my $self = $class->SUPER::plain_new(%options, actions => \@actions, @args);
     
+    $self->{nonHuman} = 1;
+    
     # we should have been supplied the option 'lane_path' which tells us which
     # lane we're in, which lets us choose which mapper module to use.
     my $lane = $self->{lane} || $self->throw("lane readgroup not supplied, can't continue");
@@ -287,12 +289,9 @@ my \$gatk = VertRes::Wrapper::GATK->new(verbose => $verbose,
 
 \$gatk->realignment_targets('$in_bam', '$intervals_file');
 
-                                        
 # do the realignment, generating an uncompressed, name-sorted bam
 unless (-s \$rel_bam) {
-    \$gatk->indel_realigner(\$in_bam, \$intervals_file, \$working_bam,
-                            LODThresholdForCleaning => 0.4,
-                            bam_compression => 0);
+    \$gatk->indel_realigner_nonhuman(\$in_bam, \$intervals_file, \$working_bam, bam_compression => 0);
 }
 
 # check for truncation
