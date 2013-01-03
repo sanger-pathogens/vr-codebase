@@ -52,8 +52,8 @@ sub is_job_running
     {
         chomp($jid);
         # For backwards compatibility, parse either a single integer or an integer
-        #   followed by \t and path to a LSF output file.
-        if ( !($jid=~/^(\d+)\s*(\S*.*)$/) ) { Utils::error("Uh, could not parse \"$jid\".\n") }
+        #   followed by \t, path to a LSF output file, and the command.
+        if ( !($jid=~/^(\d+)\s*([^\t]*)/) ) { Utils::error("Uh, could not parse \"$jid\".\n") }
 
         my $status = job_in_queue($1,$2);
         if ( $status == $Error ) { $job_running |= $Error; }
@@ -125,8 +125,13 @@ sub job_in_bjobs
     #
     # on STDERR.
 
-    my @out = Utils::CMD("bjobs -l $jid 2>/dev/null");
-    if ( ! scalar @out ) { return $Unknown; }
+    my @out;
+    for (my $i=0; $i<3; $i++)
+    {
+        @out = `bjobs -l $jid 2>/dev/null`;
+        if ( $? ) { sleep 5; next; }
+        if ( !scalar @out ) { return $Unknown; }
+    }
 
     my $job = parse_bjobs_l(\@out);
     if ( $$job{status} eq 'DONE' ) { return $Done; }
@@ -134,14 +139,18 @@ sub job_in_bjobs
     if ( $$job{status} eq 'EXIT' ) { return $Error; } 
     if ( $$job{status} eq 'RUN' ) 
     {
-        my $bswitch;
-        if ( $$job{cpu_time}*1.3 > 2*24*3600 ) { $bswitch = 'basement' }
-        elsif ( $$job{cpu_time}*1.3 > 2*3600 && $$job{queue} ne 'basement' ) { $bswitch = 'long' }
-
-        if ( defined $bswitch && $bswitch ne $$job{queue} )
+        my $queue = $$job{queue};
+        my %queue_limits = ( basement=>1e9, long=>2880*60, normal=>720*60, small=>30*60 );
+        if ( exists($queue_limits{$queue}) && $$job{cpu_time}*1.3 > $queue_limits{$queue} )
         {
-            warn("Changing queue of the job $jid from $$job{queue} to $bswitch\n");
-            `bswitch $bswitch $jid`;
+            my $bswitch;
+            for my $q (sort {$queue_limits{$a} <=> $queue_limits{$b}} keys %queue_limits)
+            {
+                if ( $$job{cpu_time}*1.3 > $queue_limits{$q} ) { next; }
+                warn("Changing queue of the job $jid from $$job{queue} to $q\n");
+                `bswitch $q $jid`;
+
+            }
         }
         return $Running;
     }
@@ -188,7 +197,7 @@ sub parse_bjobs_l
 #
 sub adjust_bsub_options
 {
-    my ($opts, $output_file,$mem_limit) = @_;
+    my ($opts, $output_file) = @_;
 
     my $mem;
     my $queue;
@@ -254,7 +263,7 @@ sub adjust_bsub_options
         # our +1000 value
         if ($mem > $orig_mem) {
             # The kind of option line we are trying to produce
-            #   -q normal -M3000000 -R 'select[type==X86_64 && mem>3000] rusage[mem=3000,thouio=1]'
+            #   -q normal -M3000000 -R 'select[type==X86_64 && mem>3000] rusage[mem=3000]'
             warn("$output_file: Increasing memory to $mem\n") unless $no_warn;  # this should be logged in the future
             
             $opts =~ s/-M\d+/-M${mem}000/;             # 3000MB -> -M3000000
@@ -283,6 +292,36 @@ sub adjust_bsub_options
     }
 
     return $opts;
+}
+
+
+=head2 past_limits
+
+    Arg [1]     : LSF job name (without the ".o" suffix)
+    Description : Find out status and limits of the previous run
+    Returntype  : Hash 
+
+=cut
+
+sub past_limits
+{
+    my ($job_name) = @_; 
+    if ( ! -e "$job_name.o" ) { return (); }
+    my %out;
+    my $parser = VertRes::Parser::LSF->new(file=>"$job_name.o");
+    my $n = $parser->nrecords() || 0;
+    for (my $i=0; $i<$n; $i++)
+    {
+        my $status = $parser->get('status',$i) || next;
+        my $mem = $parser->get('memory',$i);
+        if ( !exists($out{memory}) or $out{memory}<$mem )
+        {
+            $out{memory} = $mem;
+            if ( $status eq 'MEMLIMIT' ) { $out{MEMLIMIT} = $mem; }
+            else { delete($out{MEMLIMIT}); }
+        }
+    }
+    return %out;
 }
 
 
@@ -352,12 +391,13 @@ sub run
                 $opts{queue} = 'normal';
             }
         }
-        Utils::error("Invalid queue specified: $opts{queue}\n") if( $opts{queue} ne 'normal' && $opts{queue} ne 'long' && $opts{queue} ne 'basement' && $opts{queue} ne 'yesterday' );
-        
-        $opts{bsub_opts} = "-q $opts{queue}";
+        if ( defined($opts{queue}) ) 
+        {
+            $opts{bsub_opts} = "-q $opts{queue}";
+        }
         if ( defined($opts{memory}) ) 
         {
-            $opts{bsub_opts} .= sprintf " -M%d -R 'select[type==X86_64 && mem>%d] rusage[mem=%d]'", $opts{memory}*1000,$opts{memory},$opts{memory};
+            $opts{bsub_opts} .= sprintf " -M%d -R 'select[type==X86_64] select[mem>%d] rusage[mem=%d]'", $opts{memory}*1000,$opts{memory},$opts{memory};
         }
     }
     if ( !exists($opts{'bsub_opts'}) ) { Utils::error("No 'bsub_opts' given.\n") }
@@ -375,7 +415,7 @@ sub run
     }
 
     # Check if memory or queue should be changed (and change it)
-    $bsub_opts = adjust_bsub_options($bsub_opts, $lsf_output_file,$$options{memory_limit});
+    $bsub_opts = adjust_bsub_options($bsub_opts, $lsf_output_file);
     my $cmd = "bsub -J $job_name -e $lsf_error_file -o $lsf_output_file $bsub_opts '$bsub_cmd'";
 
     my @out = Utils::CMD($cmd,$options);
@@ -387,7 +427,7 @@ sub run
     my $mode = exists($$options{append}) && !$$options{append} ? '>' : '>>';
     if ( !($lsf_output_file=~m{^/}) ) { $lsf_output_file = "$work_dir/$lsf_output_file"; }
     open(my $jids_fh, $mode, $jids_file) or Utils::error("$jids_file: $!");
-    print $jids_fh "$jid\t$lsf_output_file\n";
+    print $jids_fh "$jid\t$lsf_output_file\t$cmd\n";
     close $jids_fh;
 
     if ( !$$options{dont_wait} )

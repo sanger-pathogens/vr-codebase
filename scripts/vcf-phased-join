@@ -320,7 +320,7 @@ sub join_vcfs_chr
     my ($opts) = @_;
 
     delete($$opts{ifile});
-    $$opts{swapped} = [ (-1) x $$opts{nsamples} ];
+    $$opts{swapped} = [ (0) x $$opts{nsamples} ];
     $$opts{phasing_set} = [ (0) x $$opts{nsamples} ];
 
     my ($vcf1,$rec1) = next_vcf_file($opts);
@@ -376,7 +376,11 @@ sub join_vcfs_chr
     else
     {
         $$opts{file2} = $$opts{ivcf_fname};
-        check_sanity($opts,$rec1,$rec2);
+        if ( wrong_order($opts,$rec1,$rec2) )
+        {
+            $vcf1->_unread_line($rec1);
+            $rec1 = $rec2;
+        }
     }
 
     my @buffer;
@@ -388,7 +392,11 @@ sub join_vcfs_chr
             output_line($opts,$rec1,$$opts{swapped});
             $rec1 = $vcf1->next_data_array();
             if ( !defined $rec1 ) { last; }
-            check_sanity($opts,$rec1,$rec2);
+            if ( wrong_order($opts,$rec1,$rec2) )
+            {
+                $vcf1->_unread_line($rec1);
+                $rec1 = $rec2;
+            }
         }
 
         if ( defined $rec1 )
@@ -400,11 +408,15 @@ sub join_vcfs_chr
                 $rec2 = $vcf2->next_data_array();
                 if ( !defined $rec1 ) { last; }
                 if ( !defined $rec2 ) { error("The file $$opts{file1} ended before $$opts{file2}."); }
-                check_sanity($opts,$rec1,$rec2);
+                if ( wrong_order($opts,$rec1,$rec2) )
+                {
+                    $vcf1->_unread_line($rec1);
+                    $rec1 = $rec2;
+                }
             }
             if ( defined $rec1 && $$rec1[1] ne $$rec2[1] )
             {
-                error("Uh, out of sync: $$rec1[0]:$$rec1[1] ne $$rec2[1]");
+                error("ERROR\tThe lines out of sync: $$rec1[0]:$$rec1[1] in (1) vs $$rec2[0]:$$rec2[1] in (2), where (1)=$$opts{file1} (2)=$$opts{file2}\n");
             }
         }
 
@@ -429,7 +441,11 @@ sub join_vcfs_chr
             ($vcf2,$rec2) = next_vcf_file($opts);
             if ( !defined $rec2 ) { last; }
             $$opts{file2} = $$opts{ivcf_fname};
-            check_sanity($opts,$rec1,$rec2);
+            if ( wrong_order($opts,$rec1,$rec2) )
+            {
+                $vcf1->_unread_line($rec1);
+                $rec1 = $rec2;
+            }
             next;
         }
     }
@@ -442,11 +458,16 @@ sub join_vcfs_chr
     while ( exists($$vcf1{fh}) && defined($rec1 = $vcf1->next_data_array()) );
 }
 
-sub check_sanity
+sub wrong_order
 {
     my ($opts,$rec1,$rec2) = @_;
     if ( $$rec1[0] ne $$rec2[0] ) { error("Encountered different chromosomes in $$opts{file1} and $$opts{file2}: \"$$rec1[0]:$$rec1[1]\" vs \"$$rec2[0]:$$rec2[1]\"\n"); }
-    if ( $$rec1[1] > $$rec2[1] ) { error("Hmm, files out of order or overlap of three files? $$opts{file1} vs $$opts{file2} and \"$$rec1[0]:$$rec1[1]\" vs \"$$rec2[1]\"\n"); }
+    if ( $$rec1[1] > $$rec2[1] ) 
+    { 
+        log_msg($opts,"WARNING\tThe lines out of sync: $$rec1[0]:$$rec1[1] in (1) vs $$rec2[0]:$$rec2[1] in (2), where (1)=$$opts{file1} (2)=$$opts{file2}\n");
+        return 1; 
+    }
+    return 0;
 }
 
 sub output_line
@@ -535,9 +556,15 @@ sub flush_buffer
 
         my $ngts = $$opts{nsamples};
         my $nerrors  = 0;
-        my (@als1,@als2);
+        my (@als1,@als2,@phased);
         for (my $i=0; $i<@$gts1; $i++)
         {
+            if ( index($$gts1[$i],'|')==-1 or index($$gts2[$i],'|')==-1 )
+            {
+                push @phased, 0;
+                next;
+            }
+            push @phased, 1;
             my ($a1,$a2) = $vcf->split_gt($$gts1[$i]);
             my ($b1,$b2) = $vcf->split_gt($$gts2[$i]);
             if ( !defined $a2 ) { $a2 = $a1; }  # haploid genotypes
@@ -556,14 +583,14 @@ sub flush_buffer
 
         for (my $i=0; $i<@$gts1; $i++)
         {
+            if ( !$phased[$i] ) { next; }
+
             my $a1 = $als1[2*$i];
             my $a2 = $als1[2*$i+1];
             my $b1 = $als2[2*$i];
             my $b2 = $als2[2*$i+1];
 
-            if ( $a1 eq $a2 or $b1 eq $b2 ) { next; }
-
-            $nsites[$i]++;
+            if ( $a1 eq $a2 or $b1 eq $b2 ) { next; }   # homozygous GT
 
             if ( $a1 eq $b1 && $a2 eq $b2 ) 
             { 
@@ -577,16 +604,18 @@ sub flush_buffer
                 $lks_match[$i] += log($p*(1-$p) + (1-$p)*$p);
                 $lks_mism[$i] += log($p*$p + (1-$p)*(1-$p));
             }
-            else { error("Uh: $$rec1[0]:$$rec1[1] .. $a1 $a2 vs $b1 $b2\n"); }
+            else { next; } # different alleles might have been selected at multiallelic sites
+
+            $nsites[$i]++;
         }
     }
 
     my $file1 = $$opts{file1};
     my $file2 = $$opts{file2};
-    my @swapped = [ (0) x $$opts{nsamples} ];
+    my @swapped = ( (0) x $$opts{nsamples} );
     my @quals = ();
     my $log10 = log(10);
-    for (my $i=0; $i<@lks_match; $i++)
+    for (my $i=0; $i<$$opts{nsamples}; $i++)
     {
         if ( !defined $lks_match[$i] )
         {

@@ -46,7 +46,7 @@ use VRTrack::File;
 use VRTrack::Core_obj;
 use VRTrack::History;
 
-use constant SCHEMA_VERSION => '24';
+use constant SCHEMA_VERSION => '25';
 
 our $DEFAULT_PORT = 3306;
 
@@ -472,6 +472,52 @@ sub hierarchy_path_of_object {
 
 sub processed_lane_hnames {
     my ($self,@filter) = @_;
+    return $self->processed_lane_hnames_with_lane_limit(-1,"",@filter);
+}
+
+=head2 processed_lane_hnames_with_limits
+
+  Arg [1]    : list of flags and values
+  Example    : my $all_lanes   = $track->processed_lane_hnames_with_limits();
+               my $qc_lanes    = $track->processed_lane_hnames_with_limits('qc'=>1);
+               my $no_qc_lanes = $track->processed_lane_hnames_with_limits('qc'=>0);
+  Description: retrieves a (optionally filtered) list of all lane hierarchy names, ordered by project, sample, library names. 
+               It filters applies another filter on the names of projects/samples/libraries/lanes at the sql level to reduce the 
+               dataset and speedup post processing
+  Returntype : arrayref
+
+=cut
+sub processed_lane_hnames_with_limits {
+    my ($self,$max_lanes, $limits, @filter) = @_;
+    
+    my $additional_limits = "";
+    my @additional_limit_terms;
+    foreach my $limit_type (qw(project sample library lane)) {
+        if (defined $limits->{$limit_type}) {
+            my $array = $limits->{$limit_type};
+            unless (ref($array) && ref($array) eq 'ARRAY') {
+                die "In your config file, the limits->$limit_type is supposed to be an array ref\n";
+            }
+            
+            for my $search_term (@{$limits->{$limit_type}})
+            {
+                push(@additional_limit_terms, $limit_type.'.name REGEXP "^'.$search_term.'$"');
+            }
+        }
+    }
+    
+    if(@additional_limit_terms > 0)
+    {
+      $additional_limits = join(" OR ", @additional_limit_terms);
+      $additional_limits = ' AND ('.$additional_limits.') ';
+    }
+    
+    return $self->processed_lane_hnames_with_lane_limit(-1,$additional_limits, @filter);
+}
+
+
+sub processed_lane_hnames_with_lane_limit {
+    my ($self,$max_lanes,$additional_limits, @filter) = @_;
     if ( scalar @filter % 2 ) { croak "Expected list of keys and values.\n"; }
     my %flags = VRTrack::Core_obj->allowed_processed_flags();
     my @goodfilters;
@@ -485,6 +531,13 @@ sub processed_lane_hnames {
     {
         $filterclause = ' AND ' . join(' AND ', @goodfilters);
     }
+    my $max_lanes_clause = '';
+    if(defined($max_lanes) && $max_lanes > 0)
+    {
+      $max_lanes_clause = " limit $max_lanes ";
+    }
+    
+    
     my @lane_names;
     my $sql =qq[select lane.hierarchy_name 
                 from latest_project as project,
@@ -494,11 +547,13 @@ sub processed_lane_hnames {
                 where lane.library_id = library.library_id 
                       and library.sample_id = sample.sample_id 
                       and sample.project_id = project.project_id 
+                      $additional_limits
                 $filterclause 
                 order by project.hierarchy_name, 
                         sample.name, 
                         library.hierarchy_name, 
-                        lane.hierarchy_name];
+                        lane.hierarchy_name
+                        $max_lanes_clause];
     my $sth = $self->{_dbh}->prepare($sql);
 
     my $tmpname;
@@ -512,6 +567,7 @@ sub processed_lane_hnames {
 
     return \@lane_names;
 }
+
 
 
 =head2 qc_filtered_lane_hnames
@@ -1484,7 +1540,7 @@ CREATE TABLE `schema_version` (
   PRIMARY KEY  (`schema_version`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
-insert into schema_version(schema_version) values (23);
+insert into schema_version(schema_version) values (25);
 
 --
 -- Table structure for table `assembly`
@@ -1691,7 +1747,7 @@ CREATE TABLE `seq_request` (
   `library_id` smallint(5) unsigned,
   `multiplex_pool_id` smallint(5) unsigned,
   `ssid` mediumint(8) unsigned DEFAULT NULL,
-  `seq_type` enum('Illumina-A HiSeq Paired end sequencing','Illumina-B HiSeq Paired end sequencing','Illumina-C HiSeq Paired end sequencing','Illumina-C MiSeq sequencing','Illumina-C Single ended hi seq sequencing','Single ended sequencing','Paired end sequencing','HiSeq Paired end sequencing','MiSeq sequencing','Single ended hi seq sequencing') DEFAULT 'Single ended sequencing',
+  `seq_type` enum('HiSeq Paired end sequencing','Illumina-A HiSeq Paired end sequencing','Illumina-A Paired end sequencing','Illumina-A Pulldown ISC','Illumina-A Pulldown SC','Illumina-A Pulldown WGS','Illumina-A Single ended hi seq sequencing','Illumina-A Single ended sequencing','Illumina-B HiSeq Paired end sequencing','Illumina-B Paired end sequencing','Illumina-B Single ended hi seq sequencing','Illumina-B Single ended sequencing','Illumina-C HiSeq Paired end sequencing','Illumina-C MiSeq sequencing','Illumina-C Paired end sequencing','Illumina-C Single ended hi seq sequencing','Illumina-C Single ended sequencing','MiSeq sequencing','Paired end sequencing','Single ended hi seq sequencing','Single Ended Hi Seq Sequencing Control','Single ended sequencing') DEFAULT 'Single ended sequencing',
   `seq_status` enum('unknown','pending','started','passed','failed','cancelled','hold') DEFAULT 'unknown',
   `note_id` mediumint(8) unsigned DEFAULT NULL,
   `changed` datetime NOT NULL DEFAULT '0000-00-00',
@@ -1800,7 +1856,7 @@ CREATE TABLE `population` (
 
 DROP TABLE IF EXISTS `species`;
 CREATE TABLE `species` (
-  `species_id` smallint(5) unsigned NOT NULL auto_increment,
+  `species_id` mediumint(8) unsigned NOT NULL auto_increment,
   `name` varchar(255) NOT NULL,
   `taxon_id` mediumint(8) unsigned NOT NULL,
   PRIMARY KEY  (`species_id`),
@@ -1819,7 +1875,7 @@ CREATE TABLE `individual` (
   `alias` varchar(40) NOT NULL DEFAULT '',
   `sex` enum('M','F','unknown') DEFAULT 'unknown',
   `acc` varchar(40) DEFAULT NULL,
-  `species_id` smallint(5) unsigned DEFAULT NULL,
+  `species_id` mediumint(8) unsigned DEFAULT NULL,
   `population_id` smallint(5) unsigned DEFAULT NULL,
   PRIMARY KEY  (`individual_id`),
   UNIQUE KEY `name` (`name`),

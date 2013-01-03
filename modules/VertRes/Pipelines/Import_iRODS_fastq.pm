@@ -192,8 +192,8 @@ sub bam_to_fastq {
     
     
     my $memory = $self->{memory};
-    if (! defined $memory || $memory < 6400) {
-        $memory = 6400;
+    if (! defined $memory || $memory < 2000) {
+        $memory = 2000;
     }
     
     ### We need to check old jobs here to see if it bummed out because of memory and increase the java memory accordingly
@@ -201,7 +201,7 @@ sub bam_to_fastq {
     
     my $java_mem = int($memory * 0.95);
     my $queue = $memory >= 30000 ? "hugemem" : "long";
-    my $samtools_sorting_memory = $memory*1000000*0.3;
+    my $samtools_sorting_memory = 300000000;
     
     my $fastqs_str ; 
     if( $self->is_paired )
@@ -295,8 +295,8 @@ sub compress_and_validate {
     my $fastq_base = $self->{lane};
     
     my $memory = $self->{memory};
-    if (! defined $memory || $memory < 100) {
-        $memory = 100;
+    if (! defined $memory || $memory < 70) {
+        $memory = 70;
     }
     my $queue = $memory >= 30000 ? "hugemem" : "normal";
     
@@ -385,10 +385,13 @@ sub update_db
     my @bam_suffix   = ('bam','bam.bai','bam.md5','bam.bc');
     my @fastq_suffix = ('fastq','fastq.fastqcheck');
 
+    my $bam = $self->{files}->[0];
+    my $nonhuman = ($bam =~ /_nonhuman.bam$/) ? '_nonhuman':''; # set for nonhuman bams
+
     for my $suffix (@bam_suffix)
     {
 	# Remove bams
-	Utils::CMD(qq[rm $lane_path/$$self{lane}.$suffix]);
+	Utils::CMD(qq[rm $lane_path/$$self{lane}$nonhuman.$suffix]);
     }
 
     for my $suffix (@fastq_suffix)

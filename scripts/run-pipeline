@@ -375,12 +375,6 @@ sub get_jobs
                 next;
             }
 
-            if ( $action=~/^__PathTrack_Import__$/ )
-            {
-                get_pathimport_jobs_from_vrtrack(\@jobs,$config_fname,$config_mtime,$config_data);
-                next;
-            }
-
             if ( $action=~/^__VRTrack_Import__$/ )
             {
                 get_import_jobs_from_vrtrack(\@jobs,$config_fname,$config_mtime,$config_data);
@@ -402,6 +396,12 @@ sub get_jobs
             if ($action=~/^__VRTrack_RNASeqExpression__$/ )
             {
                 get_rna_seq_jobs_from_vrtrack(\@jobs,$config_fname,$config_mtime,$config_data);
+                next;
+            }
+            
+            if ($action=~/^__VRTrack_Assembly__$/ )
+            {
+                get_assembly_jobs_from_vrtrack(\@jobs,$config_fname,$config_mtime,$config_data);
                 next;
             }
             
@@ -775,8 +775,8 @@ sub get_qc_jobs_from_vrtrack
     my %filter  = ('qc'=>0,'import'=>1);
     if ( exists($$config_data{vrtrack_processed_flags}) ) { %filter = %{$$config_data{vrtrack_processed_flags}}; }
 
-
-    my $hnames = $vrtrack->processed_lane_hnames(%filter);
+    my $hnames = $vrtrack->processed_lane_hnames_with_limits(-1,$config_data->{limits}, %filter);
+    
     my @lanes = filter_lanes($$config_data{limits},$hnames, $vrtrack, $config);
 
     my $jobs_running = 0;
@@ -815,62 +815,6 @@ sub get_qc_jobs_from_vrtrack
             debug($config_data, "jobs limit $$config_data{max_qc_jobs} reached...");
             last;
         }
-    }
-    debug($config_data,"done\n");
-
-    return;
-}
-
-=head2 get_pathimport_jobs_from_vrtrack
-
-  Arg [1]    : Pointer to array of jobs
-  Arg [2]    : The config file name
-  Arg [3]    : The mtime of the config file
-  Arg [4]    : The config data.
-  Description: Obtains the lane list from the VRTrack database.
-
-=cut
-
-sub get_pathimport_jobs_from_vrtrack {
-
-    my ($jobs,$config,$mtime,$config_data) = @_;
-
-    if ( !$$config_data{db} ) { croak("Expected db key in the config $config.\n"); }
-    debug($config_data,"$config\tget_pathimport_jobs_from_vrtrack...");
-
-    my $vrtrack = VRTrack::VRTrack->new($$config_data{db}) or croak("Could not connect to the database: $config\n");
-    my %filter  = ('import'=>1);
-    if ( exists($$config_data{vrtrack_processed_flags}) ) { %filter = %{$$config_data{vrtrack_processed_flags}}; }
-
-    my $hnames = $vrtrack->processed_lane_hnames(%filter);
-    my @lanes = filter_lanes($$config_data{limits},$hnames, $vrtrack, $config);
-
-    # For big data sets, this loop takes suprisingly long.
-    foreach my $vrlane (@lanes)
-    {
-        my $path   = $vrtrack->hierarchy_path_of_lane($vrlane);
-        if ( $vrlane->is_withdrawn() ) { next; }
-
-        my $lane_info = lane_info($path);
-        $$lane_info{paired} = $vrlane->is_paired();
-    $$lane_info{vrlane} = $vrlane;
-    $$lane_info{root} = $config_data->{root};
-
-        if ( exists($$config_data{data}{known_genders}) )
-        {
-            # Treat gender specific options.
-
-            my $lib    = VRTrack::Library->new($vrtrack, $vrlane->library_id());
-            my $sample = VRTrack::Sample->new($vrtrack, $lib->sample_id());
-            my $indiv  = VRTrack::Individual->new($vrtrack, $sample->individual_id());
-            my $gender = $indiv->sex();
-
-            if ( !exists($$config_data{data}{known_genders}{$gender}) ) { croak("No info for the gender $gender in $config\n"); }
-            $lane_info = { %{$$config_data{data}{known_genders}{$gender}}, %$lane_info };
-        }
-        my $job = Job->new({lane_info=>$lane_info, %$config_data, path=>$path, config=>$config, mtime=>$mtime});
-        push @$jobs, $job;
-        debug($config_data,".");
     }
     debug($config_data,"done\n");
 
@@ -1038,10 +982,10 @@ sub get_improvement_jobs_from_vrtrack {
     my @lanes;
     if ( exists $config_data->{qc} && $config_data->{qc} ) { 
         $filter{qc} = $config_data->{qc}; 
-        @lanes = @{$vrtrack->processed_lane_hnames(%filter) || []};
+        @lanes = @{$vrtrack->processed_lane_hnames_with_limits(-1,$config_data->{limits}, %filter) || []};
         debug($config_data, "got ", scalar(@lanes), " lanes that were mapped, passed qc and not improved...");
     } else {
-        @lanes = @{$vrtrack->processed_lane_hnames(%filter) || []};
+        @lanes = @{$vrtrack->processed_lane_hnames_with_limits(-1,$config_data->{limits}, %filter) || []};
         debug($config_data, "got ", scalar(@lanes), " lanes that were mapped and not improved...");
     } 
     
@@ -1096,9 +1040,8 @@ sub get_rna_seq_jobs_from_vrtrack {
     my $vrtrack = VRTrack::VRTrack->new($config_data->{db}) or croak("Could not connect to the database: $config\n");
     
     my %filter  = ( mapped => 1, rna_seq_expression => 0 );
-    # FIXME: not scalable, need to filter at this point, rather than getting all lanes and filtering later
-    my @lanes = @{$vrtrack->processed_lane_hnames(%filter) || []};
-
+    my @lanes = @{$vrtrack->processed_lane_hnames_with_limits(-1,$config_data->{limits}, %filter) || []};
+    
     if (defined $config_data->{limits}) {
         @lanes = filter_lanes($config_data->{limits}, \@lanes, $vrtrack, $config);
         debug($config_data, "got ", scalar(@lanes), " lanes that passed your limits...");
@@ -1130,6 +1073,73 @@ sub get_rna_seq_jobs_from_vrtrack {
     return;
 }
 
+
+=head2 get_assembly_jobs_from_vrtrack
+
+  Arg [1]    : Pointer to array of jobs
+  Arg [2]    : The config file name
+  Arg [3]    : The mtime of the config file
+  Arg [4]    : The config data.
+  Description: Obtains the lane list from the VRTrack database.
+
+=cut
+
+sub get_assembly_jobs_from_vrtrack {
+    my ($jobs, $config, $mtime, $config_data) = @_;
+
+    croak("Expected db key in the config $config.\n") unless defined $config_data->{db};
+    debug($config_data,"$config\tget_assembly_jobs_from_vrtrack...");
+
+    my $vrtrack = VRTrack::VRTrack->new($config_data->{db}) or croak("Could not connect to the database: $config\n");
+
+    # If large numbers of lane objects are returned it takes forever
+    my $max_lanes = 3000;
+    if(defined($config_data->{max_lanes_to_search}))
+    {
+      $max_lanes = $config_data->{max_lanes_to_search};
+    }
+    
+    my %filter  = ( stored => 1, import => 1, assembled => 0 );
+    
+    my @lanes = @{$vrtrack->processed_lane_hnames_with_limits($max_lanes,$config_data->{limits}, %filter) || []};
+
+    if (defined $config_data->{limits}) {
+        @lanes = filter_lanes($config_data->{limits}, \@lanes, $vrtrack, $config);
+        debug($config_data, "got ", scalar(@lanes), " lanes that passed your limits...");
+    }
+
+    my $count = 0;
+    foreach my $vrlane (@lanes) {
+        unless (ref($vrlane)) {
+            $vrlane = VRTrack::Lane->new_by_hierarchy_name($vrtrack, $vrlane);
+        }
+        next if $vrlane->is_withdrawn;
+        next unless($vrlane->is_paired);
+        if(defined($config_data->{storage_device}))
+        {
+          my $storage_device_regex = $config_data->{storage_device};
+          next unless($vrlane->storage_path =~ /$storage_device_regex/);
+        }
+        
+        $count++;
+
+        my $path = $vrtrack->hierarchy_path_of_lane($vrlane);
+        if ( !$path ) { croak("No path for [$vrlane->name]?\n"); }
+        my $lane_info = lane_info($path);
+
+        $lane_info->{vrlane} = $vrlane;
+        $lane_info->{lane_path} = $path;
+
+        my $job = Job->new({lane_info => $lane_info, %$config_data, path => $path, config => $config, mtime => $mtime});
+        push @$jobs, $job;
+        debug($config_data,".");
+
+        last if ($config_data->{limit} && $count >= $config_data->{limit});
+    }
+    debug($config_data,"done $count\n");
+
+    return;
+}
 
 =head2 get_import_jobs_from_vrtrack
 
@@ -1286,7 +1296,8 @@ sub get_snps_jobs_from_vrtrack {
     my %filter  = ('improved'=>1, 'snp_called' => 0);
     if ( exists($$config_data{vrtrack_processed_flags}) ) { %filter = %{$$config_data{vrtrack_processed_flags}}; }
 
-    my $hnames = $vrtrack->processed_lane_hnames(%filter);
+    my $hnames = $vrtrack->processed_lane_hnames_with_limits(-1,$config_data->{limits}, %filter);
+    
     my @lanes = filter_lanes($$config_data{limits},$hnames, $vrtrack, $config);
 
     # Ignore snp_called
