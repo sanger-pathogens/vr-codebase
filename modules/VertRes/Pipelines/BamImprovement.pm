@@ -1744,12 +1744,14 @@ sub is_finished {
                 
                 next CLEAN_UP_LOOP if (defined $link_target and $link_target =~ /.realigned.sorted.recal.calmd.bam/);
                 
-                #Removes the (non-improved) BAM file (see the comment in line 1658) 
-                #if ( defined $link_target ) {
-                #    unlink($link_target);
-                #    unlink($link_target . ".bai");
-                #}
-                
+                if ( not $self->{keep_original_bam_files} ) {
+                    #Remove the input BAM files 
+                    if ( defined $link_target ) {
+                        unlink($link_target);
+                        unlink($link_target . ".bai");
+                    }                        
+                }
+
                 #removes $in_bam which is a softlink to the (non-improved) old BAM file
                 unlink($in_bam);
                 unlink($in_bam . ".bai"); 
