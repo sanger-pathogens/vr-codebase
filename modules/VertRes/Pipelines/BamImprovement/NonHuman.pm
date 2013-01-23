@@ -27,9 +27,7 @@ limits => {
      lane => ['7444_8#17'],               
 },
 
-#Default behaviour is to delete the input bam files and keep the
-#improved ones once this pipeline has finished. If you want to keep 
-#the original bam files:
+#Default behaviour is to delete the input bam files. To keep:
 keep_original_bam_files => 1,
 
 data => 

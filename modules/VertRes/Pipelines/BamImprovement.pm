@@ -1743,8 +1743,9 @@ sub is_finished {
                 my $link_target = readlink $in_bam;
                 
                 next CLEAN_UP_LOOP if (defined $link_target and $link_target =~ /.realigned.sorted.recal.calmd.bam/);
-                
-                if ( not $self->{keep_original_bam_files} ) {
+
+                if ( not $$self{keep_original_bam_files} ) {
+    
                     #Remove the input BAM files 
                     if ( defined $link_target ) {
                         unlink($link_target);
