@@ -1729,12 +1729,21 @@ sub is_finished {
     }
     elsif ($action->{name} eq 'cleanup' || $action->{name} eq 'update_db') {
   
-        #In pathogen-informatics (nonhuman) pipelines, we clean up the 
+
+        ##################################################################  
+        #The "if" section below applies only when $self is an instance of the
+        #subclass "VertRes::Pipelines::BamImprovement::NonHuman"
+        #
+        #In pathogen-informatics' (nonhuman) pipelines, we clean up the 
         #original input bam files (*.pe.markdup.bam and *.raw.sorted.bam), 
-        #and keep only the improved ones. We will create a softlink to the improved 
-        #bam and use older BAM file names (*.raw.sorted.bam) for compatibility reasons
-          
-        if ( defined $self->{nonHuman} ) {
+        #and keep only the improved ones by default (This behaviour can be
+        #changed by including "keep_original_bam_files" in the data section
+        #of the config file though).
+        #
+        #We create a softlink to the improved bam and use older BAM file 
+        #names (*.raw.sorted.bam) for compatibility reasons
+        ##################################################################          
+        if ( ref($self) eq 'VertRes::Pipelines::BamImprovement::NonHuman' ) {
      
             CLEAN_UP_LOOP: 
             foreach my $in_bam (@{$self->{in_bams}}) { 
@@ -1750,7 +1759,7 @@ sub is_finished {
                     if ( defined $link_target ) {
                         unlink($link_target);
                         unlink($link_target . ".bai");
-                    }                        
+                    }
                 }
 
                 #removes $in_bam which is a softlink to the (non-improved) old BAM file

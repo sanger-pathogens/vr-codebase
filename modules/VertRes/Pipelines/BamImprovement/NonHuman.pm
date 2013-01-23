@@ -27,15 +27,14 @@ limits => {
      lane => ['7444_8#17'],               
 },
 
-#Default behaviour is to delete the input bam files. To keep:
-keep_original_bam_files => 1,
-
 data => 
      { 
           slx_mapper => 'smalt',
           reference => '/lustre/scratch108/pathogen/pathpipe/refs/Streptococcus/pneumoniae_Taiwan19F-14/Streptococcus_pneumoniae_Taiwan19F-14_v1.fa',
           assembly_name => 'Streptococcus_pneumoniae_Taiwan19F-14_v1',
           
+          #default behaviour is NOT to keep input bam files. If you want to keep:
+          keep_original_bam_files => 1,
      },
 
 =head1 DESCRIPTION
@@ -160,8 +159,6 @@ sub new {
     my ($class, @args) = @_;
     
     my $self = $class->SUPER::plain_new(%options, actions => \@actions, @args);
-    
-    $self->{nonHuman} = 1;
     
     # we should have been supplied the option 'lane_path' which tells us which
     # lane we're in, which lets us choose which mapper module to use.
