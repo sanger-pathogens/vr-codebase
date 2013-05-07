@@ -910,7 +910,7 @@ sub get_mapping_jobs_from_vrtrack {
         next if ($ignore_mapped && mapping_complete($config_data, $vrlane));
 
         my $lane_name = $vrlane->name;
-        if ($limit_by_lane_name) {
+        if ($limit_by_lane_name && !(defined($config_data->{dont_use_get_lanes}) && $config_data->{dont_use_get_lanes} == 1)) {
             next unless exists $requested_lanes{$lane_name};
         }
         $count++;
