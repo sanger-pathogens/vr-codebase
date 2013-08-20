@@ -328,6 +328,7 @@ use File::Copy;
 use Cwd;
 use File::Path qw(make_path);
 use Bio::AssemblyImprovement::Util::FastqTools;
+use Bio::AssemblyImprovement::Util::OrderContigsByLength;
 
 my \$assembly_pipeline = VertRes::Pipelines::Assembly->new();
 system("rm -rf $self->{assembler}_assembly_*");
@@ -352,10 +353,12 @@ my \$assembler = $assembler_class->new(
 my \$ok = \$assembler->optimise_parameters($num_threads);
 my \@lane_paths = $lane_paths_str;
 
+Bio::AssemblyImprovement::Util::OrderContigsByLength->new( input_filename => \$assembler->optimised_assembly_file_path() )->run();
 copy(\$assembler->optimised_assembly_file_path(),\$assembler->optimised_directory().'/unscaffolded_contigs.fa');
 \$ok = \$assembler->split_reads(qq[$tmp_directory], \\\@lane_paths);
 \$ok = \$assembly_pipeline->improve_assembly(\$assembler->optimised_assembly_file_path(),[qq[$tmp_directory].'/forward.fastq',qq[$tmp_directory].'/reverse.fastq'],$insert_size);
 
+Bio::AssemblyImprovement::Util::OrderContigsByLength->new( input_filename => \$assembler->optimised_assembly_file_path() )->run();
 Bio::AssemblyImprovement::PrepareForSubmission::RenameContigs->new(input_assembly => \$assembler->optimised_assembly_file_path(),base_contig_name => qq[$contigs_base_name])->run();
 
 move(qq[$tmp_directory].'/$self->{assembler}_assembly_logfile.txt', qq[$output_directory].'/$self->{assembler}_assembly_logfile.txt');
