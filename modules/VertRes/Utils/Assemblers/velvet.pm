@@ -80,6 +80,11 @@ sub optimised_directory
   return "$self->{output_directory}/velvet_assembly";
 }
 
+sub optimised_assembly_file_path
+{
+  my ($self) = @_;
+  return join('/',($self->optimised_directory(),'/contigs.fa'));
+}
 
 sub map_and_generate_stats
 {
@@ -218,6 +223,7 @@ sub estimate_memory_required
   my ($self, $input_params) = @_;
 
   my $memory_required = 0.5 * $input_params->{total_number_of_reads} + 1500000;
+  $memory_required = $memory_required/2 if $input_params->{error_correct};
 
   if($memory_required < 1000000)
   {

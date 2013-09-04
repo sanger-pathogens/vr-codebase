@@ -1,7 +1,7 @@
 #!/usr/local/bin/perl -T
 
 BEGIN {
-    $ENV{VRTRACK_HOST} = 'mcs4a';
+    $ENV{VRTRACK_HOST} = 'mcs10';
     $ENV{VRTRACK_PORT} = 3306;
     $ENV{VRTRACK_RO_USER} = 'vreseq_ro';
     $ENV{VRTRACK_RW_USER} = 'vreseq_rw';
@@ -46,6 +46,6 @@ my $init_script = $utl->{SCRIPTS}{MAP_VIEW};
 my $lanes_script = $utl->{SCRIPTS}{MAP_LANES_VIEW};
 
 print $sw->header();
-$utl->displayDatabasePage($title,$cgi,$vrtrack,$db,$init_script,$lanes_script);
+$utl->displayDatabasePage($title,$cgi,$vrtrack,$db,$init_script,$lanes_script,0);
 print $sw->footer();
 exit;

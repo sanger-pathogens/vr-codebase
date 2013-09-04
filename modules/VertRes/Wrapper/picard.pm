@@ -81,10 +81,10 @@ sub new {
     
     $self->{picard_dir} = $self->exe() || $DEFAULT_PICARD_DIR;
     my $java_mem = delete $self->{java_memory} || 5000;
-    $self->{base_exe} = "java -Xmx${java_mem}m -jar ";
+    $self->{base_exe} = "java -Xmx${java_mem}m -XX:+UseSerialGC -jar ";
     
     # our bsub jobs will get killed if we don't select high-mem machines
-    $self->bsub_options(M => ($java_mem * 1000), R => "'select[mem>$java_mem] rusage[mem=$java_mem]'");
+    $self->bsub_options(M => ($java_mem), R => "'select[mem>$java_mem] rusage[mem=$java_mem]'");
     
     my $stringency = delete $self->{validation_stringency} || 'silent';
     $self->{_default_validation_stringency} = uc($stringency);

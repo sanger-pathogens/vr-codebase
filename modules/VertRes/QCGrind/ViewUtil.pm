@@ -9,17 +9,23 @@ sub new {
     my $self={};
 
 	$self->{SCRIPTS} = {
-	    MAP_VIEW              => 'map_view.pl', 
-		MAP_PROJECTS_VIEW	  => 'map_projects_view.pl',
-		MAP_LANES_VIEW        => 'map_lanes_view.pl',
-		PENDING_VIEW          => 'pending_view.pl',
-		PENDING_REQ_VIEW	  => 'pending_requests_view.pl',
-		SAMPLE_MAPPING        => 'sample_mapping.pl',
-		SAMPMAP_PROJECTS_VIEW => 'sample_mapping_projects_view.pl',
-		SAMPMAP_LANES_VIEW    => 'sample_mapping_lanes_view.pl',
-		QCGRIND_LANE          => '../qc_grind/lane_view.pl',
-		QCGRIND_SAMPLES       => '../qc_grind/samples_view.pl',
-		INDEX_PAGE            => '../index.pl',
+	    MAP_VIEW                  => 'map_view.pl', 
+		MAP_PROJECTS_VIEW	      => 'map_projects_view.pl',
+		MAP_LANES_VIEW            => 'map_lanes_view.pl',
+		PENDING_VIEW              => 'pending_view.pl',
+		PENDING_REQ_VIEW	      => 'pending_requests_view.pl',
+		SAMPLE_MAPPING            => 'sample_mapping.pl',
+		SAMPMAP_PROJECTS_VIEW     => 'sample_mapping_projects_view.pl',
+		SAMPMAP_LANES_VIEW        => 'sample_mapping_lanes_view.pl',
+		DISK_USAGE                => 'vrpipe_disk_usage.pl',
+		DISK_USAGE_DIRECTORY      => 'directory_disk_usage.pl',
+		DISK_USAGE_PIPELINE       => 'pipeline_disk_usage.pl',
+		DISK_USAGE_INDIV_DIR      => 'individual_directory_usage.pl',
+		DISK_USAGE_INDIV_PIPE     => 'individual_pipeline_usage.pl',		
+		DISK_USAGE_FILES          => 'file_disk_usage.pl',
+		QCGRIND_LANE              => '../qc_grind/lane_view.pl',
+		QCGRIND_SAMPLES           => '../qc_grind/samples_view.pl',
+		INDEX_PAGE                => '../index.pl',
 	};
 	
 	
@@ -27,6 +33,11 @@ sub new {
 	    PENDING_LIB              => "select p.name, s.name, r.prep_status, r.changed, r.ssid from study y, latest_project p, latest_sample s, latest_library_request r where y.study_id = p.study_id and p.project_id = s.project_id and s.sample_id = r.sample_id and r.prep_status in ('pending', 'started') and y.name = ? order by p.name, r.ssid",
 	    PENDING_SEQ              => "select p.name, s.name, r.seq_status, r.changed, r.ssid from study y, latest_project p, latest_sample s, latest_library l, latest_seq_request r where y.study_id = p.study_id and p.project_id = s.project_id and s.sample_id = l.sample_id and l.library_id = r.library_id and r.seq_status in ('pending', 'started') and y.name = ? order by p.name, r.ssid",
 	    PENDING_MULTIPLEX_SEQ    => "select p.name, s.name, r.seq_status, r.changed, r.ssid from study y, latest_project p, latest_sample s, latest_library l, library_multiplex_pool m, latest_seq_request r where y.study_id = p.study_id and p.project_id = s.project_id and s.sample_id = l.sample_id and l.library_id = m.library_id and m.multiplex_pool_id = r.multiplex_pool_id and r.seq_status in ('pending', 'started') and y.name = ?",
+	    DISK_USAGE_DIRECTORY     => "select path_root, file_type, s, s_gb, file_count from vrpipe_root_top_level where s_gb > 0 and top_level_display = 1 order by s_gb desc",
+	    DISK_USAGE_PIPELINE      => "select ps_id, ps_name, ps_user, ps_type, total_s_gb, file_count from vrpipe_usage_total where total_s_gb > 0 order by total_s_gb desc",
+	    DISK_USAGE_INDIV_DIR     => "select ps_id, ps_name, ps_user, ps_type, file_type, path_root, s_gb, file_count from vrpipe_usage_top_level where path_root = ? and s_gb > 0 order by s_gb desc", 
+	    DISK_USAGE_INDIV_PIPE    => "select ps_id, ps_name, ps_user, ps_type, file_type, path_root, s_gb, file_count from vrpipe_usage_top_level where ps_id = ? and s_gb > 0 order by s_gb desc", 
+	    DISK_USAGE_FILES         => "select ps_id, ps_name, ps_user, ps_type, s, type, path from vrpipe_file_info where ps_id = ? and path_root = ? and type = ? order by s desc",
     };
 
 
@@ -180,7 +191,7 @@ sub displayDatabasesPage {
 	my $index = $self->{SCRIPTS}{INDEX_PAGE};
 	print qq[ <h4 align="center" style="font: arial"><i><a href="$index">Team 145</a></i> : $title</h4> ];
     my $pending_db = 'vrtrack_pending_requests';
-    my @main_dbs = qw (vrtrack_human_wgs vrtrack_human_wes vrtrack_mouse_wgs vrtrack_mouse_wes g1k_track_phase3);
+    my @main_dbs = qw (vrtrack_human_wgs vrtrack_human_wes vrtrack_human_wes_v5 vrtrack_mouse_wgs vrtrack_mouse_wes vrtrack_mouse_wes_GRCm38 vrtrack_mouse_wgs_GRCm38 vrtrack_scerevisiae_wgs);
     print qq[
         <div class="centerFieldset">
         <fieldset style="width: 500px">
@@ -237,7 +248,7 @@ sub displayDatabasesPage {
 
 sub displayDatabasePage
 {
-    my ($self,$title,$cgi,$vrtrack,$db,$init_script,$lanes_script) = @_;
+    my ($self,$title,$cgi,$vrtrack,$db,$init_script,$lanes_script,$all_flag) = @_;
     my $index = $self->{SCRIPTS}{INDEX_PAGE};
     print qq[
         <h4 align="center" style="font: arial"><i><a href="$index">Team 145</a> : <a href="$init_script">$title</a></i> :  $db</h4>
@@ -251,6 +262,7 @@ sub displayDatabasePage
         my $id = $project->id();
         print qq[<p><a href="$lanes_script?db=$db&amp;proj_id=$id">].$project->name().qq[</a></p>];
     }
+    print qq[<p><a href="$lanes_script?db=$db&amp;proj_id=99999">SHOW_ALL_PROJECTS</a></p>] if $all_flag;
     print qq[
         </fieldset>
         </div>
@@ -283,14 +295,17 @@ sub getSampleMappings
     my $web_db = 'vrtrack_web_index';
 	my $vrtrack = $self->connectToDatabase($web_db);
 	$self->displayError( "Failed to connect to web database: $web_db" ) unless defined( $vrtrack );
-	my $sql = qq[SELECT supplier_name, accession_number, sanger_sample_name FROM sample_id_mapping where db_id = ? and project_id = ?];
+	my $sql = qq[SELECT supplier_name, accession_number, sanger_sample_name FROM sample_id_mapping where db_id = ?];
+	$sql = $sql." and project_id = ?" unless $pid == 99999;
 	my $sth = $vrtrack->{_dbh}->prepare($sql);	
-	if ($sth->execute($db_id, $pid)) {
-		my ($supp, $acc, $sang);
-		$sth->bind_columns(\($supp, $acc, $sang));
-		while ($sth->fetch) {
-			push @{ $mappings{$sang} }, ($supp, $acc);
-		}
+	if ( $pid == 99999 ) {
+		$sth->execute($db_id);
+	}
+	else {
+		$sth->execute($db_id, $pid);
+	}
+	while (my ($supp, $acc, $sang) = $sth->fetchrow_array()) {
+		push @{ $mappings{$sang} }, ($supp, $acc);
 	}
 	return %mappings;	
 }
@@ -312,6 +327,42 @@ sub fetchProjectName
 		}
 	}
 	return $pname;
+}
+
+sub fetchUsageTotals
+{
+	my ($self, $sql) = @_;
+    my $web_db = 'vrtrack_web_index';
+	my $vrtrack = $self->connectToDatabase($web_db);
+	$self->displayError( "Failed to connect to web database: $web_db" ) unless defined( $vrtrack );	
+	my $sth = $vrtrack->{_dbh}->prepare($sql);
+	my @totals;
+	if ($sth->execute()) {
+		while (my @rset = $sth->fetchrow_array()) {
+			push @totals, [@rset];
+		}
+    }
+    return @totals;
+} 
+
+sub fetchIndividualUsage
+{
+	my ($self, $sql, $param1, $param2, $param3) = @_;
+    my $web_db = 'vrtrack_web_index';
+	my $vrtrack = $self->connectToDatabase($web_db);
+	$self->displayError( "Failed to connect to web database: $web_db" ) unless defined( $vrtrack );	
+	my $sth = $vrtrack->{_dbh}->prepare($sql);
+	my @totals;
+	if ( $param2 && $param3 ) {
+		$sth->execute($param1, $param2, $param3);
+	}
+	else {
+		$sth->execute($param1);
+	}
+	while (my (@rset) = $sth->fetchrow_array()) {
+		push @totals, [@rset];
+	}
+    return @totals;
 }
 
 sub nonVrtrackConnection

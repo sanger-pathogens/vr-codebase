@@ -61,7 +61,7 @@ use base qw(VertRes::Pipelines::Import_iRODS VertRes::Pipelines::Import);
 
 use strict;
 use warnings;
-use LSF;
+use VertRes::LSF;
 use VRTrack::VRTrack;
 use VRTrack::Lane;
 use VRTrack::File;
@@ -69,6 +69,7 @@ use VertRes::Utils::FileSystem;
 use VertRes::Pipelines::Import;
 use VertRes::Pipelines::Import_iRODS;
 use Pathogens::Import::ValidateFastqConversion;
+
 
 our @actions =
 (
@@ -192,15 +193,15 @@ sub bam_to_fastq {
     
     
     my $memory = $self->{memory};
-    if (! defined $memory || $memory < 2000) {
-        $memory = 2000;
+    if (! defined $memory || $memory < 8000) {
+        $memory = 8000;
     }
     
     ### We need to check old jobs here to see if it bummed out because of memory and increase the java memory accordingly
     ### if we know whats its going to be increased to we can set java to 90% of it.
     
     my $java_mem = int($memory * 0.95);
-    my $queue = $memory >= 30000 ? "hugemem" : "long";
+    my $queue = $memory >= 30000 ? "hugemem" : "normal";
     my $samtools_sorting_memory = 300000000;
     
     my $fastqs_str ; 
@@ -222,9 +223,27 @@ use strict;
 use VertRes::Utils::Sam;
 use File::Spec;
 use VertRes::Wrapper::samtools;
+use Bio::Tradis::DetectTags;
+use Bio::Tradis::AddTagsToSeq;
 
 my \$dir = '$lane_path';
 my \@fastqs = $fastqs_str;
+
+my \$is_tradis =
+  Bio::Tradis::DetectTags->new( bamfile => qq[$in_bam] )->tags_present;
+if (defined(\$is_tradis) && \$is_tradis == 1) {
+	my \$trbam = qq[$in_bam].".tratmp.bam";
+	my \$add_tag_obj =
+      Bio::Tradis::AddTagsToSeq->new( bamfile => qq[$in_bam], outfile => \$trbam);
+	\$add_tag_obj->add_tags_to_seq();
+	system("mv \$trbam $in_bam");
+
+	# Remove previous runs of bamcheck without tags - forces rerun
+	my \$bc = qq[$in_bam] . ".bc";
+	if(-e \$bc){
+		system("rm \$bc");
+	}
+}
 
 # Remove output files from failed runs.
 for my \$fastq (\@fastqs)
@@ -248,11 +267,11 @@ system("mv $self->{lane}.fastq.fastqcheck $self->{lane}_1.fastq.fastqcheck");
 exit;
 };
     close $scriptfh;
-    
+
     my $job_name = $self->{prefix}.'bam2fastq';
     $self->archive_bsub_files($lane_path, $job_name);
-    LSF::run($action_lock, $lane_path, $job_name, {bsub_opts => "-q $queue -M${memory}000 -R 'select[mem>$memory] rusage[mem=$memory]'", dont_wait=>1 }, qq{perl -w $script_name});
-    
+    VertRes::LSF::run($action_lock, $lane_path, $job_name, {bsub_opts => "-q $queue -M${memory} -R 'select[mem>$memory] rusage[mem=$memory]'", dont_wait=>1 }, qq{perl -w $script_name});
+ 
     # we've only submitted to LSF, so it won't have finished; we always return
     # that we didn't complete
     return $self->{No};
@@ -329,10 +348,11 @@ my \$validator = Pathogens::Import::CompressAndValidate->new( irods_filename => 
 exit;
 };
     close $scriptfh;
-    
+
     my $job_name = $self->{prefix}.'compressfastq';
     $self->archive_bsub_files($lane_path, $job_name);
-    LSF::run($action_lock, $lane_path, $job_name, {bsub_opts => "-q $queue -M${memory}000 -R 'select[mem>$memory] rusage[mem=$memory]'", dont_wait=>1 }, qq{perl -w $script_name});
+    VertRes::LSF::run($action_lock, $lane_path, $job_name, {bsub_opts => "-q $queue -M${memory} -R 'select[mem>$memory] rusage[mem=$memory]'", dont_wait=>1 }, qq{perl -w $script_name});
+
     
     # we've only submitted to LSF, so it won't have finished; we always return
     # that we didn't complete

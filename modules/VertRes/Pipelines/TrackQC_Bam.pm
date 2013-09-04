@@ -14,7 +14,7 @@ use base qw(VertRes::Pipeline);
 
 use strict;
 use warnings;
-use LSF;
+use VertRes::LSF;
 use VertRes::Utils::GTypeCheck;
 use VertRes::Utils::GTypeCheckGLF;
 use VRTrack::VRTrack;
@@ -23,6 +23,7 @@ use VRTrack::Mapstats;
 use VertRes::Parser::bamcheck;
 use VertRes::Parser::bam;
 use VertRes::Parser::dict;
+use Utils;
 
 our @actions =
 (
@@ -87,8 +88,8 @@ our $options =
     'clean_fastqs'    => 0,
 
     'adapters'        => '/software/pathogen/projects/protocols/ext/solexa-adapters.fasta',
-    'bsub_opts'       => "-q normal -M5000000 -R 'select[type==X86_64] select[mem>5000] rusage[mem=5000]'",
-    'bsub_opts_merge' => "-q normal -M5000000 -R 'select[type==X86_64] select[mem>5000] rusage[mem=5000] rusage[thouio=5]'",
+    'bsub_opts'       => "-q normal -M5000 -R 'select[type==X86_64] select[mem>5000] rusage[mem=5000]'",
+    'bsub_opts_merge' => "-q normal -M5000 -R 'select[type==X86_64] select[mem>5000] rusage[mem=5000] rusage[thouio=5]'",
     'gc_depth_bin'    => 20000,
     'gtype_confidence'=> 5.0,
     'mapstat_id'      => 'mapstat_id.txt',
@@ -343,7 +344,7 @@ rename("x$name.bam","$name.bam") or Utils::error("rename x$name.bam $name.bam: \
 ];
     close($fh);
 
-    LSF::run($lock_file,$work_dir,"_${name}_merge",{bsub_opts=>$$self{bsub_opts_merge}}, q{perl -w _merge.pl});
+    VertRes::LSF::run($lock_file,$work_dir,"_${name}_merge",{bsub_opts=>$$self{bsub_opts_merge}}, q{perl -w _merge.pl});
     return $$self{'No'};
 }
 
@@ -527,7 +528,7 @@ my \$qc = VertRes::Pipelines::TrackQC_Bam->new(\%params);
 ];
     close $fh;
 
-    LSF::run($lock_file,"$lane_path/$sample_dir","_${lane}_graphs", $self, qq{perl -w _graphs.pl});
+    VertRes::LSF::run($lock_file,"$lane_path/$sample_dir","_${lane}_graphs", $self, qq{perl -w _graphs.pl});
     return $$self{'No'};
 }
 
@@ -786,10 +787,11 @@ sub auto_qc
             }
             push @qc_status, { test=>$test, status=>1, reason=>$reason };
 
-            $reason = sprintf "%.1f%% of inserts are contained within %.1f%% of the max peak (%.2f%%).",$within_peak,$peak_win,$range;
-            if ( $range>$peak_win )
+            my $range_str = defined $range ? sprintf "%.2f%%",$range : "undef";
+            $reason = sprintf "%.1f%% of inserts are contained within %.1f%% of the max peak (%s).",$within_peak,$peak_win,$range_str;
+            if ( $range>$peak_win || !defined $range )
             {
-                $status=0; $reason = sprintf "Fail library, %.1f%% of inserts are not within %.1f%% of the max peak (%.2f%%).",$within_peak,$peak_win,$range;
+                $status=0; $reason = sprintf "Fail library, %.1f%% of inserts are not within %.1f%% of the max peak (%s).",$within_peak,$peak_win,$range_str;
             }
             push @qc_status, { test=>'Insert size (rev)', status=>1, reason=>$reason };
 
@@ -855,6 +857,10 @@ sub insert_size_ok
         $count += $yval;
     }
     my $out_amount = 100.0*$count/$total_count;
+
+    # return range as undef if max insert peak at zero.
+    return($out_amount,undef) unless $$vals[$imaxpeak][0];
+
 
     # How big must be the range in order to accomodate the requested amount of data
     $data_amount *= 0.01;

@@ -1,4 +1,4 @@
-package LSF;
+package VertRes::LSF;
 
 use strict;
 use warnings;
@@ -18,7 +18,7 @@ our $Done    = 16;
 
 =head1 NAME
 
-LSF
+VertRes::LSF
 
 =head1 SYNOPSIS
 
@@ -263,19 +263,24 @@ sub adjust_bsub_options
         # our +1000 value
         if ($mem > $orig_mem) {
             # The kind of option line we are trying to produce
-            #   -q normal -M3000000 -R 'select[type==X86_64 && mem>3000] rusage[mem=3000]'
+            #   -q normal -M3000 -R 'select[type==X86_64 && mem>3000] rusage[mem=3000]'
             warn("$output_file: Increasing memory to $mem\n") unless $no_warn;  # this should be logged in the future
             
-            $opts =~ s/-M\d+/-M${mem}000/;             # 3000MB -> -M3000000
+            $opts =~ s/-M\d+/-M$mem/;
             $opts =~ s/(select[^]]+mem>)\d+/$1$mem/;
             $opts =~ s/(rusage[^]]+mem=)\d+/$1$mem/;
             
             # The lines above replaced existing values in $opts. If they are not present, add them
-            if ( !($opts=~/-M\d+/) ) { $opts .= " -M${mem}000" }
+            if ( !($opts=~/-M\d+/) ) { $opts .= " -M${mem}" }
             if ( !($opts=~/-R/) ) { $opts .= " -R 'select[mem>$mem] rusage[mem=$mem]'"; }
             else
             {
                 if ( !($opts=~/select/) ) { $opts .= " -R 'select[mem>$mem]'"; }
+                elsif($opts=~ /select\[mem(.){1,2}[\d]+\]/)
+                { 
+                  # select[type==X86_64] select[mem>1000]
+                  # If there is more than 1 select statement, dont do anything as the memory has already been modified.
+                }
                 elsif ( $opts=~/select\[([^]]+)\]/ && !($1=~/mem/) ) { $opts =~ s/select\[/select[mem>$mem &&/ }
                 if ( !($opts=~/rusage/) ) { $opts .= " -R 'rusage[mem=$mem]'" }
                 elsif ( $opts=~/rusage\[([^]]+)\]/ && !($1=~/mem/) ) { $opts =~ s/rusage\[/rusage[mem=$mem,/ }
@@ -397,7 +402,7 @@ sub run
         }
         if ( defined($opts{memory}) ) 
         {
-            $opts{bsub_opts} .= sprintf " -M%d -R 'select[type==X86_64] select[mem>%d] rusage[mem=%d]'", $opts{memory}*1000,$opts{memory},$opts{memory};
+            $opts{bsub_opts} .= sprintf " -M%d -R 'select[type==X86_64 && mem>%d] rusage[mem=%d]'", $opts{memory},$opts{memory},$opts{memory};
         }
     }
     if ( !exists($opts{'bsub_opts'}) ) { Utils::error("No 'bsub_opts' given.\n") }
@@ -442,8 +447,8 @@ sub run
         {
             $status = job_in_queue($jid,"$lsf_output_file");
             if ( $status!=$No ) { last }
-            sleep(2);
-            $max_wait-=2;
+            sleep(1);
+            $max_wait-=1;
         }
         if ( $status==$No ) { Utils::error("The job $1 $lsf_output_file still not in queue??\n"); }
     }

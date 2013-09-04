@@ -20,7 +20,11 @@ vrtracking_tool
       qc
       genotype
       improved
+      mapped
       snp_called
+      assembled
+      rna_seq_expression
+      annotated
     -database/file objects:  
       lane
       library
@@ -120,7 +124,7 @@ use Carp;
 
 my ($config, $config_data, $stage, $help, $delete, $verbose, $root, $db, $test);
 #values for $stage that involve *resetting* db flags and file deletion
-my @stages =  ('import', 'qc', 'genotype', 'improved', 'snp_called', 'assembled', 'mapped');
+my @stages =  ('import', 'qc', 'genotype', 'improved', 'snp_called', 'assembled', 'mapped','rna_seq_expression','annotated');
 #values for $stage that can EITHER have flags reset as above, OR have VRTrack objects and whole directories deleted, depending on whether the --delete/-del flag is set)
 my @entities = ('lane', 'library', 'sample', 'study');
 
@@ -181,7 +185,11 @@ my $reset_stage = $reset_stages{$stage};
       qc
       genotype
       improved
+      mapped
       snp_called
+      assembled
+      rna_seq_expression
+      annotated
     -database/file objects:  
       lane
       library
@@ -270,9 +278,16 @@ while (<>){
 		#for recalculation operations (reset flags on db and delete files from disk)
 		else {
     		my @mapping_ids = sort { $b<=>$a } @{$vrobject->mapping_ids()};
-    		my $mapstats_id = $mapping_ids[0];
-    		my $qcdir = $vrdirectory.'/qc-sample.'.$mapstats_id.'/';
-    		unless (-d $qcdir) {
+    		my $mapstats_id = 0;
+    		my $qcdir;
+    		foreach ( @mapping_ids ) {
+				my $checkdir = $vrdirectory.'/qc-sample.'.$_.'/';
+				$qcdir = $checkdir if (-d $checkdir);
+				$mapstats_id = $_ if ($_ > $mapstats_id); 
+			}
+			#my $mapstats_id = $mapping_ids[0];
+    		#my $qcdir = $vrdirectory.'/qc-sample.'.$mapstats_id.'/';
+    		unless ($qcdir && -d $qcdir) {
     			$qcdir = $vrdirectory.'/qc-sample/'; 
     		}
     		my %files_deleted = (
@@ -285,29 +300,60 @@ while (<>){
 					       "^[0-9]+\.[ps]e\.markdup\.snp\$",
 					       "^[0-9]+\.[ps]e\.raw\.sorted\.snp\$"],
 				all => ["^[\\w]+"],
-                                assembled => ["^_pool_fastqs",
+
+ 			     assembled => [ #Files from pool fastqs stage
+ 					      "[\\w]*pool_fastqs_done", 
+					      "[\\w]*pool_fastqs\.(e|o|pl)",
                                               "^pool_1\.fastq\.gz\$",
-                                              "^_velvet_optimise_parameters",
-                                              "^_optimise_parameters\.jids\$",
-                                              "^_velvet_map_back",
-                                              "^_update_db_done\$", # prior to 24 Sept 2012 
-                                              "^_cleanup_done\$",   # prior to 24 Sept 2012 
-                                              "^_assembly_cleanup_done\$",    # replaced _cleanup_done
-                                              "^_assembly_update_db_done\$",  # replaced _update_db_done      
-                                              "^velvet_assembly_logfile\.txt\$",
-                                              "^velvet_assembly\$"],
-                                mapped => ["^\._mark_duplicates_[ps]e_[0-9]+.[oe].archive\$",
-                                           "^\._statistics_[0-9]+\.[ps]e\.raw\.sorted\.bam\.[oe]\.archive\$",
-                                           "^\._merge_[ps]e_[0-9]+\.[oe]\.archive\$",
-                                           "^\._map_[ps]e_[0-9]+_[0-9]+\.[oe]\.archive\$",
-                                           "^\._split_[ps]e_[0-9]+\.[oe]\.archive\$",
+                                              #Files from optimise parameters stage. Changed to cope with different assemblers. 4 June 2013
+                                              "[\\w]*optimise_parameters\.(e|o|pl)", 
+                                              "[\\w]*optimise_parameters_done",
+                                              "[\\w]*assembly_logfile\.txt\$",
+                                              "optimise_parameters\.jids\$",
+                                              "[\\w]_assembly",
+                                              "^forward\.fastq\$",
+                                              "^reverse\.fastq\$",
+                                              #Files from map back stage
+                                              "[\\w]*map_back\.(e|o|pl|jids)", 
+                                              "[\\w]*map_back_done",    
+                                              #Files from update db and clean up stages                                    
+                                              "[\\w]*cleanup_done\$",    
+                                              "[\\w]*update_db_done\$",
+                                              "^_assembly_job_status\$"],
+                                mapped => ["^\.[\\w]+mark_duplicates_[ps]e_[0-9]+.[oe].archive\$",
+                                           "^\.[\\w]+statistics_[0-9]+\.[ps]e\.raw\.sorted\.bam\.[oe]\.archive\$",
+                                           "^\.[\\w]+merge_[ps]e_[0-9]+\.[oe]\.archive\$",
+                                           "^\.[\\w]+map_[ps]e_[0-9]+_[0-9]+\.[oe]\.archive\$",
+                                           "^\.[\\w]+split_[ps]e_[0-9]+\.[oe]\.archive\$",
                                            "^[0-9]+\.[ps]e\.markdup\.bam\$","^[0-9]+\.[ps]e\.markdup\.bam\.bai\$",
                                            "^[0-9]+\.[ps]e\.raw\.sorted\.bam\$","^[0-9]+\.[ps]e\.raw\.sorted\.bam\.bai\$",
                                            "^[0-9]+\.[ps]e\.raw\.sorted\.bam_graphs\$",
-                                           "^[0-9]+\.[ps]e\.raw\.sorted\.bam\.(cover|bc|bas|flagstat)\$",
+                                           "^[0-9]+\.[ps]e\.raw\.sorted\.bam\.(cover|bc|bas|flagstat|tmp)\$",
                                            "^\.[0-9]+\.[ps]e\.raw\.sorted\.bam\.checked\$",
                                            "^\.mapping_complete_[ps]e_[0-9]+\$",
-                                           "^\.split_complete_[ps]e_[0-9]+\$"],
+                                           "^\.split_complete_[ps]e_[0-9]+\$",
+                                           "^[\\w]+split_[ps]e_[0-9]+\.([oe]|pl)\$",
+                                           "^split_[ps]e_[0-9]+\$",
+                                           "^[\\w]+map_[ps]e_[0-9]+_[0-9]+\.[oe](\.previous)?\$",
+                                           "^[\\w]+merge_[ps]e_[0-9]+\.([oe](\.previous)?|pl)\$",
+                                           "^[\\w]+statistics_[0-9]+\.[ps]e\.raw\.sorted\.bam\.([oe](\.previous)?|pl)\$",
+                                           "^[\\w]+mark_duplicates_[ps]e_[0-9]+\.([oe](\.previous)?|pl)\$"],
+                                rna_seq_expression => ["\.intergenic\.",
+                                           "calculate\_expression", 
+                                           "\.coverageplot\.gz\$",
+                                           "\.expression\.csv\$",
+                                           "rna\_seq\_update\_db\_done\$",
+                                           "rna\_seq\_cleanup\_done\$",
+                                           "\.corrected\.bam\.bai\$",
+                                           "\.corrected\.bam\$"],
+                                           
+                                annotated => [
+                                          "annotate\_assembly\.(e|o|pl)\$",
+                                          "annotate\_cleanup\_done\$",
+                                          "annotate\_update\_db\_done\$",
+                                          "annotate\_assembly\_done\$",
+                                          "^velvet_assembly\/annotation\$"
+                                ],
     		);
     		
     		my @files_del = $entity_op ? @{$files_deleted{$reset_stage}} : @{$files_deleted{$stage}};	

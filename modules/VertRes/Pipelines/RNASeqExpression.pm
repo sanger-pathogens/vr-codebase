@@ -63,8 +63,11 @@ use strict;
 use warnings;
 use VRTrack::VRTrack;
 use VRTrack::Lane;
-use LSF;
+use VertRes::LSF;
 use File::Basename;
+use VertRes::Parser::bam;
+use File::Basename;
+use Utils;
 
 use base qw(VertRes::Pipeline);
 
@@ -135,6 +138,8 @@ sub calculate_expression_provides
   my @expression_done_files ;
   for my $filename (@{$self->_find_sequencing_files})
   {
+    next if($self->does_reference_in_bam_match_annotation($self->{lane_path}."/".$filename,$self->{annotation_file}) == 0);
+    
     push(@expression_done_files, $self->{lane_path}."/".$self->{prefix}.$filename."_calculate_expression_done");
   }
 
@@ -154,11 +159,18 @@ sub _create_expression_job
 
   my $job_name = $self->{prefix}.$sequencing_filename.'_calculate_expression';
   my $script_name = $self->{fsu}->catfile($output_directory, $self->{prefix}.$sequencing_filename.'_calculate_expression.pl');
-  my $total_memory_mb = 3000;
   my $prefix = $self->{prefix};
   
+  my $total_memory_mb = 3000;
+  my $queue = 'normal';
+  if($self->get_reference_size_from_bam($output_directory.'/'.$sequencing_filename) > 20000000)
+  {
+    $total_memory_mb = 6000;
+    $queue = 'long';
+  }
+  
   my($action_lock_filename, $directories, $suffix) = fileparse($action_lock);
-  my $sequencing_file_action_lock = $self->{lane_path}.'/'.$self->{prefix}.$sequencing_filename.$action_lock_filename;
+  my $sequencing_file_action_lock = $self->{lane_path}.'/'.$self->{prefix}.'calculate_expression.jids';
 
   my $mpileup_str  = "";
   if(defined ($self->{mpileup_cmd}))
@@ -207,7 +219,7 @@ sub _create_expression_job
     $window_margin_str
     $intergenic_regions_str
     );
-  eval {
+
   \$expression_results->output_spreadsheet();
   
   Pathogens::RNASeq::$plots_class->new(
@@ -216,18 +228,14 @@ sub _create_expression_job
     mapping_quality      => $self->{mapping_quality},
     $mpileup_str
   )->create_plots();
-  
-  };
-  if (\$@) {
-      print("Couldnt create expression for $sequencing_filename using reference $self->{annotation_file} probably because it was mapped to a different reference\n");
-  }
+
   
   system('touch $prefix${sequencing_filename}_calculate_expression_done');
   exit;
                 };
                 close $scriptfh;
 
-        LSF::run($sequencing_file_action_lock, $output_directory, $job_name, {bsub_opts => "-M${total_memory_mb}000 -R 'select[mem>$total_memory_mb] rusage[mem=$total_memory_mb]'", dont_wait=>1}, qq{perl -w $script_name});
+        VertRes::LSF::run($sequencing_file_action_lock, $output_directory, $job_name, {bsub_opts => "-q $queue -M${total_memory_mb} -R 'select[mem>$total_memory_mb] rusage[mem=$total_memory_mb]'", dont_wait=>1}, qq{perl -w $script_name});
 
         # we've only submitted to LSF, so it won't have finished; we always return
         # that we didn't complete
@@ -242,16 +250,61 @@ sub calculate_expression
   for my $sequencing_filename (@{$self->_find_sequencing_files})
   {
     next if( -e $self->{lane_path}."/".$self->{prefix}.$sequencing_filename."_calculate_expression_done");
+    next if($self->does_reference_in_bam_match_annotation($self->{lane_path}."/".$sequencing_filename,$self->{annotation_file}) == 0);
     
     $self->_create_expression_job($build_path,$action_lock, $sequencing_filename);
   }
   return $self->{No};
 }
 
+sub get_reference_size_from_bam
+{
+  my($self, $sequencing_filename) = @_;
+  
+  my $total_reference_size = 0;
+  my $obj = VertRes::Parser::bam->new(file => $sequencing_filename);
+  my %all_sequences_info = $obj->sequence_info();
+  my @sequence_names = keys(%all_sequences_info);
+  
+  for my $sequence_line (@sequence_names)
+  {
+     my $sequence_size = $obj->sequence_info($sequence_line, 'LN');
+     next unless(defined($sequence_size));
+     $total_reference_size += $sequence_size;
+  }
+  
+  return $total_reference_size;  
+}
 
+sub get_reference_from_bam
+{
+  my($self, $sequencing_filename) = @_;
+  
+  my $obj = VertRes::Parser::bam->new(file => $sequencing_filename);
+  my %all_sequences_info = $obj->sequence_info();
+  my @sequence_names = keys(%all_sequences_info);
+  my $reference_file = $obj->sequence_info($sequence_names[0], 'UR');
+  return undef unless(defined($reference_file));
+  $reference_file =~ s/file://;
+  return $reference_file;
+}
 
-
-
+# Assuming the name of the annotation has the same base filename as the reference, we can tell if they matches. Depends on a consistent naming scheme.
+sub does_reference_in_bam_match_annotation
+{
+  my($self, $sequencing_filename, $annotation_filename) = @_;
+  my $reference_file = $self->get_reference_from_bam($sequencing_filename);
+  return 0 if(! defined($reference_file));
+  
+   my($reference_basefilename, $directories, $suffix) = fileparse($reference_file, qr/\.[^.]*/);
+  
+  if($annotation_filename =~ /$reference_basefilename/)
+  {
+    return 1;
+  }
+ 
+  return 0;
+}
 
 =head2 update_db_requires
 
