@@ -386,6 +386,21 @@ sub new {
     return $self;
 }
 
+=head2 plain_new
+
+ Title   : plain_new
+ Usage   : my $obj = VertRes::Pipeline::BamImprovement->plain_new(%options, actions => \@actions, @args);
+ Function: We have written this method to make subclassing this class easier for non-human datasets
+ Returns : A VertRes::Pipeline object
+ Args    : See VertRes::Pipeline documentation
+
+=cut
+
+sub plain_new {
+    my ($class, @args) = @_;
+    return $class->SUPER::new(%options, actions => $actions, @args);
+}
+
 =head2 realign_requires
 
  Title   : realign_requires
@@ -1714,7 +1729,54 @@ sub is_finished {
         # for now, don't delete the previous bam (we might want it?),
     }
     elsif ($action->{name} eq 'cleanup' || $action->{name} eq 'update_db') {
+  
+
+        ##################################################################  
+        #The "if" section below applies only when $self is an instance of the
+        #subclass "VertRes::Pipelines::BamImprovement::NonHuman"
+        #
+        #In pathogen-informatics' (nonhuman) pipelines, we clean up the 
+        #original input bam files (*.pe.markdup.bam and *.raw.sorted.bam), 
+        #and keep only the improved ones by default (This behaviour can be
+        #changed by including "keep_original_bam_files" in the data section
+        #of the config file though).
+        #
+        #We create a softlink to the improved bam and use older BAM file 
+        #names (*.raw.sorted.bam) for compatibility reasons
+        ##################################################################          
+        if ( ref($self) eq 'VertRes::Pipelines::BamImprovement::NonHuman' ) {
+     
+            CLEAN_UP_LOOP: 
+            foreach my $in_bam (@{$self->{in_bams}}) { 
+
+                my (undef, undef, undef, $calmd_bam) = $self->_bam_name_conversion($in_bam);
+                my $link_target = readlink $in_bam;
+                
+                next CLEAN_UP_LOOP if (defined $link_target and $link_target =~ /.realigned.sorted.recal.calmd.bam/);
+
+                if ( not $$self{keep_original_bam_files} ) {
+    
+                    #Remove the input BAM files 
+                    if ( defined $link_target ) {
+                        unlink($link_target);
+                        unlink($link_target . ".bai");
+                    }
+                }
+
+                #removes $in_bam which is a softlink to the (non-improved) old BAM file
+                unlink($in_bam);
+                unlink($in_bam . ".bai"); 
+                
+                #creates a softlink with the old BAM file name ($in_bam) which points to 
+                #the freshly improved BAM file ($calmd_bam)
+                symlink($calmd_bam, $in_bam);
+                symlink($calmd_bam. ".bai", $in_bam. ".bai");
+
+            }
+        }
+        
         return $self->{No};
+        
     }
     
     return $self->SUPER::is_finished($lane_path, $action);

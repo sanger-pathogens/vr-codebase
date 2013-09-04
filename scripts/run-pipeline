@@ -368,6 +368,12 @@ sub get_jobs
                 get_improvement_jobs_from_vrtrack(\@jobs,$config_fname,$config_mtime,$config_data);
                 next;
             }
+            
+            if ( $action=~/^__VRTrack_BamImprovement_NonHuman__$/ )
+            {
+                get_improvement_jobs_from_vrtrack(\@jobs,$config_fname,$config_mtime,$config_data);
+                next;
+            }
 
             if ( $action=~/^__VRTrack_Import__$/ )
             {

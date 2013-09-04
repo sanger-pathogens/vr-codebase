@@ -75,7 +75,7 @@ my $fsu = VertRes::Utils::FileSystem->new();
                                  individual methods with the DBSNP option)
            covs      => [] (as per set_covs())
            bs        => [] (as per set_b())
-           build     => NCBI36|NCBI37|NCBIM37 (default NCBI37: sets defaults for
+           build     => NCBI36|NCBI37|NCBIM37|NONHUMAN (default NCBI37: sets defaults for
                         reference, dbsnp, covs and bs as appropriate for the
                         build; overriden by the above 4 options if they are set
                         manually)
@@ -133,6 +133,9 @@ sub new {
         #               'pilot1_YRI,VCF,'.File::Spec->catfile($ENV{GATK_RESOURCES}, 'vcfs', 'YRI.2and3_way.vcf')];
     }
     elsif ($build eq 'NCBIM37') {
+        # no defaults yet, could set them up if desired...
+    }
+    elsif ($build eq 'NONHUMAN') {
         # no defaults yet, could set them up if desired...
     }
     elsif ($build) {
@@ -631,6 +634,48 @@ sub indel_realigner {
     }
     $params{T} = 'IndelRealigner';
     $self->_handle_common_params(\%params);
+    
+    $self->register_output_file_to_check($out_bam);
+    $self->_set_params_and_switches_from_args(%params);
+    
+    return $self->run(@file_args);
+}
+
+=head2 indel_realigner_nonhuman
+
+ Title   : indel_realigner_nonhuman
+ Usage   : $wrapper->indel_realigner_nonhuman('in.bam', 'intervals', 'out.bam');
+ Function: This is for nonhuman datasets. 
+           Does local realignment around indels in intervals as determined by
+           realignment_targets(), generating a "cleaned" bam suitable for
+           calling SNPs on.
+ Returns : n/a
+ Args    : path to input .bam file, path to output of realignment_targets(),
+           path to output bam.
+           maxReadsInMemory is set to 100x java_memory, minimum 500000 by default.
+
+=cut
+
+sub indel_realigner_nonhuman {
+    my ($self, $in_bam, $intervals_file, $out_bam, @params) = @_;
+   
+    
+    $self->switches([qw(noOriginalAlignmentTags
+                        disable_bam_indexing generate_md5 simplifyBAM
+                        noPGTag targetIntervalsAreNotSorted)]);
+    $self->params([qw(R T)]);
+    
+    my $bs = $self->get_b();
+    
+    my @file_args = (" $bs -I $in_bam", " -targetIntervals $intervals_file", " -o $out_bam");
+    
+    my %params = (bam_compression => 0, disable_bam_indexing => 1, @params);
+    if (! defined $params{maxReadsInMemory}) {
+        $params{maxReadsInMemory} = 100 * ($self->{java_memory} >= 5000 ? $self->{java_memory} : 5000);
+    }
+    $params{T} = 'IndelRealigner';
+    $params{R} = $self->{_default_R};
+ 
     
     $self->register_output_file_to_check($out_bam);
     $self->_set_params_and_switches_from_args(%params);
