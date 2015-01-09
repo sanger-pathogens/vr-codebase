@@ -102,8 +102,8 @@ our %options = (
 
 sub new {
     my ( $class, @args ) = @_;
-
-    my $self = $class->SUPER::new( %options, actions => $actions, @args );
+    my $self = $class->VertRes::Pipelines::Import_iRODS::new(%options,'actions'=>$actions,@args);
+    
     if ( defined( $self->{db} ) ) {
         $self->{vrtrack} = VRTrack::VRTrack->new( $self->{db} ) or $self->throw("Could not connect to the database\n");
     }
