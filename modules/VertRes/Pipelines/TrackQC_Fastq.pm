@@ -14,12 +14,14 @@ use base qw(VertRes::Pipelines::TrackQC_Bam);
 
 use strict;
 use warnings;
+use Carp;
 use VertRes::LSF;
 use VertRes::Parser::fastqcheck;
 use VertRes::Wrapper::bwa;
 use VertRes::Utils::Sam;
 use VRTrack::Assembly;
 use Pathogens::Parser::GenomeCoverage;
+use Pathogens::QC::HetSNPCalculator;
 use Bio::Metagenomics::External::Kraken;
 use Utils;
 
@@ -84,6 +86,14 @@ our @actions =
       'provides' => \&transposon_provides,
     },
 
+    # Calculates heterozygosity percentage and counts.
+    {
+        'name'     => 'heterozygous_snps',
+        'action'   => \&heterozygous_snps,
+        'requires' => \&heterozygous_snps_requires,
+        'provides' => \&heterozygous_snps_provides,
+    },
+
     # Creates some QC graphs and generate some statistics.
     {
         'name'     => 'stats_and_graphs',
@@ -120,9 +130,12 @@ our $options =
     'kraken_report_exec' => 'kraken-report',
     'mapviewdepth'    => 'mapviewdepth_sam',
     'samtools'        => 'samtools',
-    
+    'samtools_het_snps'        => 'samtools-1.1.30',
+    'bcftools'        => 'bcftools-1.2',
+
     'adapters'        => '/software/pathogen/projects/protocols/ext/solexa-adapters.fasta',
     'bsub_opts'       => "-q normal -M5000 -R 'select[mem>5000] rusage[mem=5000]'",
+    'bsub_opts_heterozygous_snps'   => "-q normal -M500 -R 'select[mem>500] rusage[mem=500]'",
     'bsub_opts_stats_and_graphs'   => "-q normal -M1000 -R 'select[mem>1000] rusage[mem=1000]'",
     'bsub_opts_map_sample'         => "-q normal -M5000 -R 'select[mem>5000] rusage[mem=5000]'",
     'bsub_opts_process_fastqs'     => "-q normal -M3200 -R 'select[mem>3200] rusage[mem=3200]'",
@@ -135,6 +148,12 @@ our $options =
     'kraken_report'   => 'kraken.report',
     'sample_dir'      => 'qc-sample',
     'sample_size'     => 50e6,
+    'min_rawReadDepth'     => 10,
+    'min_hqNonRefBases'     => 5,
+    'rawReadDepth_hqNonRefBases_ratio'     => 0.3,
+    'min_qual'     => 20,
+    'hqRefReads_hqAltReads_ratio'     => 0.3,
+    'het_report'          => 'heterozygous_snps_report.txt',
     'stats'           => '_stats',
     'stats_detailed'  => '_detailed-stats.txt',
     'stats_dump'      => '_stats.dump',
@@ -770,6 +789,75 @@ sub transposon
    return $$self{'No'};
 }
 
+#----------- calculate_heterozygousity ---------------------
+
+sub heterozygous_snps_requires
+{
+    my ($self) = @_;
+    my $sample_dir = $$self{'sample_dir'};
+    my @requires = ("$sample_dir/$$self{lane}.bam");
+    return \@requires;
+}
+
+sub heterozygous_snps_provides
+{
+    my ($self) = @_;
+    my $sample_dir = $$self{'sample_dir'};
+    my $het_report = $self->{lane} . '_heterozygous_snps_report.txt';
+    my @provides = ("_heterozygous_snps_done",$het_report);
+    return \@provides;
+}
+
+sub heterozygous_snps
+{
+  my ($self,$lane_path,$lock_file) = @_;
+
+  my $sample_dir = $$self{'sample_dir'};
+  my $reference_size = get_reference_size($self,$lane_path);
+
+  # Dynamic script to be run by LSF.
+  open(my $fh, '>', "$lane_path/$sample_dir/_heterozygous_snps.pl") or Utils::error("$lane_path/$sample_dir/_heterozygous_snps.pl: $!");
+  print $fh
+qq[
+use Pathogens::QC::HetSNPCalculator;
+
+my \$het_snp_calc = Pathogens::QC::HetSNPCalculator->new(
+						  samtools => q[$self->{samtools_het_snps}],
+						  bcftools => q[$self->{bcftools}],
+						  fa_ref => q[$self->{fa_ref}],
+						  reference_size => q[$reference_size],
+						  lane_path => q[$self->{lane_path}],
+						  lane => q[$self->{lane}],
+						  sample_dir => q[$self->{sample_dir}],
+						  het_report => q[$self->{het_report}],
+						  min_rawReadDepth => q[$self->{min_rawReadDepth}],
+						  min_hqNonRefBases => q[$self->{min_hqNonRefBases}],
+						  rawReadDepth_hqNonRefBases_ratio => q[$self->{rawReadDepth_hqNonRefBases_ratio}],
+						  min_qual => q[$self->{min_qual}],
+						  hqRefReads_hqAltReads_ratio => q[$self->{hqRefReads_hqAltReads_ratio}],
+						 );
+
+\$het_snp_calc->write_het_report;
+\$het_snp_calc->remove_temp_vcfs_and_csvs;
+
+system("touch $lane_path/_heterozygous_snps_done") and die "Error touch $lane_path/_heterozygous_snps";
+];
+  close $fh;
+
+  VertRes::LSF::run($lock_file,"$lane_path/$sample_dir","_heterozygous_snps", {bsub_opts=>$self->{bsub_opts_heterozygous_snps}}, qq{perl -w _heterozygous_snps.pl});
+  return $$self{'No'};
+}
+
+sub get_reference_size {
+
+  my ($self,$lane_path) = @_;
+  my $vrtrack  = VRTrack::VRTrack->new($$self{db}) or $self->throw("Could not connect to the database: ",join(',',%{$$self{db}}),"\n");
+  my $assembly = VRTrack::Assembly->new_by_name($vrtrack, $$self{assembly});
+  my $reference_size = $assembly->reference_size();
+  unless($reference_size){ $self->throw("Failed to find reference genome size for lane $lane_path\n"); }
+  return $reference_size;
+}
+
 
 #----------- stats_and_graphs ---------------------
 
@@ -777,7 +865,8 @@ sub stats_and_graphs_requires
 {
     my ($self) = @_;
     my $sample_dir = $$self{'sample_dir'};
-    my @requires = ("$sample_dir/$$self{lane}.bam");
+    my $het_report = $self->{lane} . '_heterozygous_snps_report.txt';
+    my @requires = ("$sample_dir/$$self{lane}.bam","$het_report");
     return \@requires;
 }
 
@@ -798,7 +887,7 @@ sub stats_and_graphs
     my $stats_ref = exists($$self{stats_ref}) ? $$self{stats_ref} : '';
 
     # Get size of assembly
-    my $vrtrack  = VRTrack::VRTrack->new($$self{db}) or $self->throw("Could not connect to the database: ",join(',',%{$$self{db}}),"\n");
+    my $vrtrack = VRTrack::VRTrack->new($$self{db}) or $self->throw("Could not connect to the database: ",join(',',%{$$self{db}}),"\n");
     my $assembly = VRTrack::Assembly->new_by_name($vrtrack, $$self{assembly});
     my $reference_size = $assembly->reference_size();
     unless($reference_size){ $self->throw("Failed to find reference genome size for lane $lane_path\n"); }
@@ -837,7 +926,7 @@ my \$qc = VertRes::Pipelines::TrackQC_Fastq->new(\%params);
 ];
     close $fh;
 
-    VertRes::LSF::run($lock_file,"$lane_path/$sample_dir","_${lane}_graphs", {bsub_opts=>$$self{bsub_opts_stats_and_graphs}}, qq{perl -w _graphs.pl});
+    VertRes::LSF::run($lock_file,"$lane_path/$sample_dir","_${lane}_graphs",{bsub_opts=>$$self{bsub_opts_stats_and_graphs}}, qq{perl -w _graphs.pl});
     return $$self{'No'};
 }
 
