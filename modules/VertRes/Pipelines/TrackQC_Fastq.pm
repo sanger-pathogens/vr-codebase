@@ -154,7 +154,7 @@ our $options = {
     'gc_depth_bin'     => 20000,
     'gtype_confidence' => 5.0,
     'kraken_db' =>
-      '/lustre/scratch108/pathogen/pathpipe/kraken/minikraken_20140330/',
+      '/lustre/scratch108/pathogen/pathpipe/kraken/pi_qc_2015521/',
     'kraken_report'                    => 'kraken.report',
     'sample_dir'                       => 'qc-sample',
     'sample_size'                      => 50e6,
