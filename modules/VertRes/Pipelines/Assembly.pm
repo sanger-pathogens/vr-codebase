@@ -201,7 +201,7 @@ sub new {
 }
 
 
-sub runJob {
+sub run_lsf_job {
   my ($self, $lockFile, $outputFolder, $jobName, $options, $command) = @_;
   
   VertRes::LSF::run( $lockFile, $outputFolder, $jobName, $options, $command ); 
@@ -295,7 +295,7 @@ sub mapping_and_generate_stats
 
   my $memory_required_mb = 1700;
 
-  $self->runJob($action_lock, $output_directory, $job_name, {bsub_opts => " -M${memory_required_mb} -R 'select[mem>$memory_required_mb] rusage[mem=$memory_required_mb]'"}, qq{perl -w $script_name});
+  $self->run_lsf_job($action_lock, $output_directory, $job_name, {bsub_opts => " -M${memory_required_mb} -R 'select[mem>$memory_required_mb] rusage[mem=$memory_required_mb]'"}, qq{perl -w $script_name});
 
 }
 
@@ -486,7 +486,7 @@ exit;
 
       my $queue = $self->decide_appropriate_queue($memory_required_mb);
 
-      $self->runJob($action_lock, $output_directory, $job_name, {bsub_opts => "-n$num_threads -q $queue -M${total_memory_mb} -R 'select[mem>$total_memory_mb] rusage[mem=$total_memory_mb] span[hosts=1]'", dont_wait=>1}, qq{perl -w $script_name});
+      $self->run_lsf_job($action_lock, $output_directory, $job_name, {bsub_opts => "-n$num_threads -q $queue -M${total_memory_mb} -R 'select[mem>$total_memory_mb] rusage[mem=$total_memory_mb] span[hosts=1]'", dont_wait=>1}, qq{perl -w $script_name});
 
       # we've only submitted to LSF, so it won't have finished; we always return
       # that we didn't complete
@@ -903,7 +903,7 @@ exit;
         $queue        = 'long';
     }
 
-    $self->runJob(
+    $self->run_lsf_job(
         $action_lock, $self->{lane_path}, $job_name,
         { bsub_opts => "-q $queue -M${memory_in_mb} -R 'select[mem>$memory_in_mb] rusage[mem=$memory_in_mb]'" },
         qq{perl -w $script_name}
