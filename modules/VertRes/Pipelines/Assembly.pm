@@ -278,7 +278,7 @@ sub mapping_and_generate_stats
 
   system("touch \$directory/$self->{prefix}$self->{assembler}_${action_name_suffix}_done");
 
-  system("touch $self->{prefix}$self->{assembler}_${action_name_suffix}_done");
+  system("touch $output_directory/$self->{prefix}$self->{assembler}_${action_name_suffix}_done");
   exit;
                 };
   close $scriptfh;
