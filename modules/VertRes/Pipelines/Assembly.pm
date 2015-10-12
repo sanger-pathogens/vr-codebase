@@ -760,19 +760,19 @@ system("mkdir -p $output_directory");
 
     my $lane_name = $self->{lane};
         my $lane_path = $self->{vrtrack}->hierarchy_path_of_lane_name($lane_name);
-        my $vlane = VRTrack::Lane->new_by_name( $self->{vrtrack}, $lane_name );
 
-        my @file_names;
-        my @file_names_with_path;
 
-        if ( @{ $vlane->files } == 2 ) {
 
-            for my $file_name ( @{ $vlane->files } ) {
-                push( @file_names, $file_name->name );
-            }
-            @file_names = sort @file_names
-              ; # Unfortunately normalisation code cannot handle reads interleaved in any other way besides /1, /2, /1 and so on. We rely here on the files being named with _1 and _2 so that the order is maintained.
-        }
+
+
+
+
+
+
+
+
+
+
 
         my $forward_reads_filename = $self->{lane_path} . "/" . $file_names[0];
         my $reverse_reads_filename = $self->{lane_path} . "/" . $file_names[1];
