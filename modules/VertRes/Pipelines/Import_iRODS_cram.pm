@@ -209,19 +209,24 @@ sub cram_to_fastq {
       system("mv ".$add_tag_obj->outfile." $file");
     }
 
-    my @bamtofastq_command = ( 
+    # Need to specify a version of samtools that can read CRAM and pipe that to bamtofastq
+    my $samtools_cram_exec = '/software/pathogen/external/apps/usr/bin/samtools-1.6' ;
+    my @bamtofastq_command = (
+      $samtools_cram_exec,
+      'view',
+      '-hb',
+      $file,
+      '|',
       'bamtofastq',
       'collate=1',
-      'inputformat=cram',
+      'inputformat=bam',
       "F=".$filename."_1.fastq.gz",
       "O=".$filename."_1.fastq_orphan.gz",
       "F2=".$filename."_2.fastq.gz",
       "O2=".$filename."_2.fastq_orphan.gz",
       "S=".$filename.".fastq.gz",
       'gz=1',
-      'exclude=SECONDARY,SUPPLEMENTARY',
-      '<',
-      $file,
+      'exclude=SECONDARY,SUPPLEMENTARY'
     );
 
     system(join(" ", @bamtofastq_command) );
