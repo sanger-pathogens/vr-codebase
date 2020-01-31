@@ -10,8 +10,8 @@ VertRes::Wrapper::karma - wrapper for karma
 
 Needs 24GB, or 16GB with --occurrenceCutoff < about 100
 
-karma ÐcreateIndex Ðreference 1kgref.fa ÐwordSize <readsize/4>
-karma Ðreference 1kgref.fa ÐpairedReads _1.fastq.gz _2.fastq.gz
+karma createIndex reference 1kgref.fa wordSize <readsize/4>
+karma reference 1kgref.fa pairedReads _1.fastq.gz _2.fastq.gz
 
 =head1 AUTHOR
 

@@ -402,7 +402,7 @@
  # above changes the scheduler stored in the db for newly created Submission
  # objects when scheduler => isn't supplied to new(), and it also changes the
  # return value of $sub->scheduler on existing objects, without changing the
- #Êvalue in the db.
+ #value in the db.
 
  # find out about and manipulate the submission:
  my $job = $sub->job;

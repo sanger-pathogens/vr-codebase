@@ -28,7 +28,7 @@ $bfast-0.6.1c/bfast postprocess -f hg18.fa -i bfast.aligned.file.s <N>.baf -a 3 
 
 
 
-To reduce RAM consumption at the cost of speed, see the ”-d” option in “bfast index”.
+To reduce RAM consumption at the cost of speed, see the -d option in bfast index.
 bfast fasta2brg -f <ref.fa> -t
 bfast index -f <ref.fa> -m <mask string> -d 0 -w 14 -i <index number> -n <num threads> -T <tmp dir> -t   # since they said 24GB, I'll use -d 1 to split into 4 parts?
 bfast match -f <ref.fa> -r <reads.fastq> -n <num threads> -T <tmp dir> -t > <out.bmf>
