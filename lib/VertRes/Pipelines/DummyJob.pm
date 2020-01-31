@@ -1,9 +1,6 @@
-# This example pipeline contains two actions named "hello" and "world".
-# Note: This code is not maintained and may not work with latest version 
-#   of Pipeline.pm.
-#
+# A dummy pipeline that has no interactions with databases
 
-package VertRes::Pipelines::OliHack;
+package VertRes::Pipelines::DummyJob;
 use base qw(VertRes::Pipeline);
 
 use strict;
@@ -35,9 +32,7 @@ our $options =
 {
     'Hello' => 'Hello',
     'World' => 'World',
-    'Extra' => 'Extra',
-    'assembly_path' => '/pyrodata01/assemblies/metahit/AlistipesshahiiDSM19121/P_2009_11_26_18_16_07_runAssembly/',
-    'lane' => 'F6ATPV203',
+    'Extra' => 'Extra'
 };
 
 
