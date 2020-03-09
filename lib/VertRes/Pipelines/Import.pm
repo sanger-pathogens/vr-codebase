@@ -37,7 +37,7 @@ our $options =
     # Executables
     'fastqcheck'      => 'fastqcheck',
     'mpsa'            => '/software/solexa/bin/mpsa_download',
-    'bsub_opts'       => "-q normal -R 'select[type==X86_64] rusage[thouio=1]'",
+    'bsub_opts'       => "-q normal -R 'select[type==X86_64]'",
     'local_bam_dir'     => '',
 };
 

@@ -90,7 +90,7 @@ our $options =
 
     'adapters'        => '/software/pathogen/projects/protocols/ext/solexa-adapters.fasta',
     'bsub_opts'       => "-q normal -M5000 -R 'select[type==X86_64] select[mem>5000] rusage[mem=5000]'",
-    'bsub_opts_merge' => "-q normal -M5000 -R 'select[type==X86_64] select[mem>5000] rusage[mem=5000] rusage[thouio=5]'",
+    'bsub_opts_merge' => "-q normal -M5000 -R 'select[type==X86_64] select[mem>5000] rusage[mem=5000]'",
     'gc_depth_bin'    => 20000,
     'gtype_confidence'=> 5.0,
     'mapstat_id'      => 'mapstat_id.txt',
@@ -131,7 +131,7 @@ our $options =
                     adapters        .. the location of .fa with adapter sequences
                     assembly        .. e.g. NCBI36
                     bsub_opts       .. LSF bsub options for jobs
-                    bsub_opts_merge .. LSF bsub options for the rename_and_merge task (thouio=50)
+                    bsub_opts_merge .. LSF bsub options for the rename_and_merge task 
                     bwa_ref         .. the prefix to reference files, as required by bwa
                     clean_fastqs    .. If set, .fastq files will be deleted as the last step in update_db
                     do_samtools_rmdup .. If set, pipes the bam through samtools rmdup to get stats without duplicates
