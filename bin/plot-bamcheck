@@ -2,6 +2,7 @@
 #
 # Author: petr.danecek@sanger
 #
+# PODNAME: bobby_tables.pl at /usr/local/share/perl/5.14.2/Pod/Weaver.pm line 73.
 
 use strict;
 use warnings;
