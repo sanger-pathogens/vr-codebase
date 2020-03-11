@@ -35,10 +35,10 @@ data =>
 {
     task => 'mpileup,gatk,update_db,cleanup,pseudo_genome',
    
-    bsub_opts       => "-q normal -M3500 -R 'select[type==X86_64] select[mem>3500] rusage[mem=3500] rusage[tmp=16000]'",
-    bsub_opts_long  => "-q normal -M3500 -R 'select[type==X86_64 select[mem>3500] rusage[mem=3500] rusage[tmp=16000]'",
-    bsub_opts_qcall  => "-q normal -M3500 -R 'select[type==X86_64 select[mem>3500 && tmp>17000] rusage[mem=3500] rusage[tmp=17000]'",
-    bsub_opts_mpileup    => "-q normal -R 'select[type==X86_64]'",
+    bsub_opts       => "-q normal -M3500 -R 'select[type==X86_64] select[mem>3500] rusage[mem=3500] rusage[thouio=1] rusage[tmp=16000]'",
+    bsub_opts_long  => "-q normal -M3500 -R 'select[type==X86_64 select[mem>3500] rusage[mem=3500] rusage[thouio=1] rusage[tmp=16000]'",
+    bsub_opts_qcall  => "-q normal -M3500 -R 'select[type==X86_64 select[mem>3500 && tmp>17000] rusage[mem=3500] rusage[thouio=1] rusage[tmp=17000]'",
+    bsub_opts_mpileup    => "-q normal -R 'select[type==X86_64] rusage[thouio=1]'",
  
     split_size_mpileup   => 300_000_000,
     split_size_gatk      => 100_000_000,         
@@ -221,9 +221,9 @@ our @actions =
 our $options = 
 {
     bcftools        => 'bcftools',
-    bsub_opts_varfilter  => "-q normal -R 'select[type==X86_64]'",
-    bsub_opts_mpileup    => "-q normal -R 'select[type==X86_64]'",
-    bsub_opts_qcall      => "-q normal -R 'select[type==X86_64]'",
+    bsub_opts_varfilter  => "-q normal -R 'select[type==X86_64] rusage[thouio=1]'",
+    bsub_opts_mpileup    => "-q normal -R 'select[type==X86_64] rusage[thouio=1]'",
+    bsub_opts_qcall      => "-q normal -R 'select[type==X86_64] rusage[thouio=1]'",
     bsub_opts_gatk       => "-q normal -M3000 -R 'select[mem>3000] rusage[mem=3000]'",
     chunks_overlap  => 250,
     fai_chr_regex   => '\d+|x|y',

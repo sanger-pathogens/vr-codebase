@@ -109,7 +109,7 @@ our @actions =
 our $options = 
 {
     'bamcheck'        => 'bamcheck -q 20',
-    'bsub_opts'       => "-q normal -R 'select[type==X86_64]'",
+    'bsub_opts'       => "-q normal -R 'select[type==X86_64] rusage[thouio=1]'",
 };
 
 
