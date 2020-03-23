@@ -28,7 +28,7 @@ use warnings;
 use base qw(VertRes::Base);
 
 
-our $defaults = { 'icommands'         => '/usr/bin',
+our $defaults = { 'icommands'         => (defined $ENV{'IRODS_EXEC_PATH'}) ? $ENV{'IRODS_EXEC_PATH'} : '/usr/bin',
                 };
 
 
