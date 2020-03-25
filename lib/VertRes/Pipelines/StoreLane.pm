@@ -186,8 +186,10 @@ exit;
     close $scriptfh;
     
     $self->delete_bsub_files($lane_path, $job_name);
-    
-    VertRes::LSF::run($action_lock, $lane_path, $job_name, {bsub_opts => "-M80 -R 'select[mem>80] rusage[mem=80]'" }, qq{perl -w $script_name});
+   
+    my $lsf_memory = (defined $ENV{'STORAGE_LSF_MEM_IN_M'}) ? $ENV{'STORAGE_LSF_MEM_IN_M'} : 90;
+ 
+    VertRes::LSF::run($action_lock, $lane_path, $job_name, {bsub_opts => "-M".$lsf_memory." -R 'select[mem>".$lsf_memory."] rusage[mem=".$lsf_memory."]'" }, qq{perl -w $script_name});
     
     return $self->{No};
 }
