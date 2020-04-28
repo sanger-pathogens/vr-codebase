@@ -56,7 +56,6 @@ use base qw(VertRes::Pipeline);
 use VertRes::Utils::FileSystem;
 use File::Spec;
 use Utils;
-use Bio::PacbioMethylation::RSModificationRunner;
 
 our $actions = [
     {
