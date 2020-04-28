@@ -67,7 +67,6 @@ use VertRes::LSF;
 use File::Basename;
 use VertRes::Parser::bam;
 use File::Basename;
-use Bio::RNASeq;
 use Utils;
 use Data::Dumper;
 

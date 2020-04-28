@@ -1,9 +1,0 @@
-This document describes the different releases (git tags).
-
-Version  Description
--------  -----------
-0.01     Initial public release on github
-0.02     Nice stable point, prior to an upcoming exome-related schema changes
-0.03     Stable point, known working for UK10K analysis, prior to incorporating
-         many changes from Pathogens/HGI
-0.04     VRTrack schema version 20, with the new AutoQC table
