@@ -1,0 +1,18 @@
+#!/usr/bin/env perl
+
+package Bio::VertRes::Permissions::UpdatePipelineFilePermissions;
+
+# ABSTRACT: Update all the permissions of files in a list of directories
+# PODNAME: update_pipeline_file_permissions
+
+=head1 SYNOPSIS
+
+Update all the permissions of files in a list of directories
+
+=cut
+
+use Cwd qw(abs_path); 
+BEGIN { unshift( @INC, abs_path('./lib') ) }
+use Bio::VertRes::Permissions::CommandLine::UpdatePipelineFilePermissions;
+
+Bio::VertRes::Permissions::CommandLine::UpdatePipelineFilePermissions->new(args => \@ARGV, script_name => $0)->run;

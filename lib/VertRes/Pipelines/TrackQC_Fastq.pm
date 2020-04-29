@@ -23,7 +23,6 @@ use VertRes::Utils::Sam;
 use VRTrack::Assembly;
 use Pathogens::Parser::GenomeCoverage;
 use Pathogens::QC::HetSNPCalculator;
-use Bio::Metagenomics::External::Kraken;
 use Utils;
 
 our @actions = (
