@@ -8,7 +8,7 @@ before_install:
 - cpanm local::lib
 - eval "$(perl -Mlocal::lib=${PWD}/perl_modules)"
 - cpanm --notest Dist::Zilla
-- set +e; cpanm --notest Sys::CpuLoadX@0.04; set -e; exit 0
+- eval "cpanm --notest Sys::CpuLoadX || exit 0"
 addons:
   apt:
     packages:
