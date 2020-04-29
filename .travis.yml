@@ -26,6 +26,7 @@ addons:
     - libdbd-mysql-perl
     - cpanminus
     - libz-dev
+    - libdb-dev
 perl:
 - "5.30"
 install:
