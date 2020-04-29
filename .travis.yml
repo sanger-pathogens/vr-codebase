@@ -9,6 +9,11 @@ before_install:
 - eval "$(perl -Mlocal::lib=${PWD}/perl_modules)"
 - cpanm --notest Dist::Zilla
 - eval "cpanm --notest Sys::CpuLoadX || exit 0"
+- git clone https://github.com/sanger-pathogens/assembly_improvement
+- cd assembly_improvement
+- dzil authordeps --missing | cpanm --notest
+- dzil listdeps --missing | cpanm --notest
+- dzil install --install-command "cpanm --notest ."
 addons:
   apt:
     packages:
@@ -23,13 +28,8 @@ addons:
     - libz-dev
 perl:
 - "5.30"
-before_script:
-- git clone https://github.com/sanger-pathogens/assembly_improvement
-- cd assembly_improvement 
+install:
 - dzil authordeps --missing | cpanm --notest 
 - dzil listdeps --missing | cpanm --notest
-- dzil install --install-command "cpanm --notest ."
 script:
-- dzil authordeps --missing | cpanm --notest
-- dzil listdeps --missing | cpanm --notest
 - dzil install --install-command "cpanm --notest ."
