@@ -118,6 +118,3 @@ For more information, please see the [GitHub wiki](https://github.com/Vertebrate
 
 ## License
 Vr-codebase is free software, licensed under [GPLv3](https://github.com/sanger-pathogens/vr-codebase/blob/master/LICENSE)
-
-## Feedback/Issues
-Please report any issues to path-help@sanger.ac.uk.
