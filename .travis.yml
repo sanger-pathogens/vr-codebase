@@ -1,28 +1,35 @@
 dist: bionic
 language: perl
+sudo: false
+cache:
+  directories:
+  - perl_modules
+before_install:
+- cpanm local::lib
+- eval "$(perl -Mlocal::lib=${PWD}/perl_modules)"
+- cpanm --notest Dist::Zilla
+- cpanm --notest Sys::CpuLoadX@0.04 || exit 0
 addons:
   apt:
     packages:
-       - git
-       - wget
-       - file
-       - build-essential
-       - libssl-dev
-       - libexpat1-dev
-       - libdbd-mysql-perl
-       - cpanminus
-       - libz-dev
+    - git
+    - wget
+    - file
+    - build-essential
+    - libssl-dev
+    - libexpat1-dev
+    - libdbd-mysql-perl
+    - cpanminus
+    - libz-dev
 perl:
-  - "5.30"
+- "5.30"
 before_script:
- - cpanm --notest Dist::Zilla
- - cpanm --notest Sys::CpuLoadX@0.04 || exit 0  
- - git clone https://github.com/sanger-pathogens/assembly_improvement
- - cd assembly_improvement 
- - dzil authordeps --missing | cpanm --notest 
- - dzil listdeps --missing | cpanm --notest
- - dzil install --install-command "cpanm --notest ."
+- git clone https://github.com/sanger-pathogens/assembly_improvement
+- cd assembly_improvement 
+- dzil authordeps --missing | cpanm --notest 
+- dzil listdeps --missing | cpanm --notest
+- dzil install --install-command "cpanm --notest ."
 script:
- - dzil authordeps --missing | cpanm --notest
- - dzil listdeps --missing | cpanm --notest
- - dzil install --install-command "cpanm --notest ."
+- dzil authordeps --missing | cpanm --notest
+- dzil listdeps --missing | cpanm --notest
+- dzil install --install-command "cpanm --notest ."
