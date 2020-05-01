@@ -6,7 +6,7 @@ branches:
   - master
 branches:
   except:
-  - /^v\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+$/
+  - /^v.*$/
 cache:
   directories:
   - perl_modules
@@ -37,6 +37,7 @@ addons:
 perl:
 - "5.30"
 install:
+- echo travis tag $TRAVIS_TAG
 - git config --local user.name "Pathogen Informatics CI"
 - git config --local user.email "pathdev@sanger.ac.uk"
 - export TIMESTAMP_VERSION=$(date -u '+%Y.%m.%d.%H.%M.%S.%3N')
@@ -44,7 +45,7 @@ install:
 - export EXISTING_TAG=${TRAVIS_TAG}
 - export TRAVIS_TAG=${TRAVIS_TAG:-${BRANCH_BASED_TAG}}
 - sed -i 's:^version = .*$:version = '"$TIMESTAMP_VERSION"':g' dist.ini
-- git tag $TRAVIS_TAG
+- if [ "${EXISTING_TAG}" == "" ]; then git tag $TRAVIS_TAG; fi
 - if [ "$TRAVIS_PULL_REQUEST" == "false" ] && [ "${EXISTING_TAG}" == "" ]; then git push -q "https://${GITHUB_OAUTH_TOKEN}@github.com/${TRAVIS_REPO_SLUG}" $TRAVIS_TAG; fi
 - dzil authordeps --missing | cpanm --notest 
 - dzil listdeps --missing | cpanm --notest
