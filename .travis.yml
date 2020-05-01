@@ -38,3 +38,10 @@ install:
 - dzil listdeps --missing | cpanm --notest
 script:
 - dzil install --install-command "cpanm --notest ."
+deploy:
+  provider: releases
+  api_key: "$GITHUB_OAUTH_TOKEN"
+  file: java_launchers-${TRAVIS_TAG}.tar.gz
+  skip_cleanup: true
+  on:
+    tags: true
