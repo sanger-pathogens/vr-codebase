@@ -38,6 +38,17 @@ install:
 - dzil listdeps --missing | cpanm --notest
 script:
 - dzil install --install-command "cpanm --notest ."
+before_deploy:
+- git config --local user.name "Pathogen Informatics CI"
+- git config --local user.email "pathdev@sanger.ac.uk"
+- export UUID=$(cat /proc/sys/kernel/random/uuid)
+- git checkout -b $UUID
+- export BRANCH_BASED_TAG=$(if [ "$TRAVIS_BRANCH" == "master" ]; then echo v$(date -u '+%Y.%m.%d.%H.%M.%S.%3N'); else echo "$TRAVIS_BRANCH"-$(date -u '+%Y.%m.%d.%H.%M.%S.%3N'); fi)
+- export TRAVIS_TAG=${TRAVIS_TAG:-${BRANCH_BASED_TAG}}
+- sed -i 's:^version = .*$:version = '"$TRAVIS_TAG"':g' dist.ini
+- git commit -am "Updated the version number"
+- git tag $TRAVIS_TAG
+- git push -q $(git config remote.origin.url | sed 's://://'"$GITHUB_OAUTH_TOKEN"'@:g') $TRAVIS_TAG
 deploy:
   provider: releases
   api_key: "$GITHUB_OAUTH_TOKEN"
@@ -45,4 +56,5 @@ deploy:
   file: "*.tar.gz"
   skip_cleanup: true
   on:
-    tags: true
+    tags: false
+    all_branches: true
