@@ -55,6 +55,3 @@ deploy:
   file_glob: true
   file: "*.tar.gz"
   skip_cleanup: true
-  on:
-    tags: false
-    branch: master
