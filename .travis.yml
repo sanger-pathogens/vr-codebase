@@ -46,9 +46,9 @@ install:
 - dzil listdeps --missing | cpanm --notest
 script:
 - dzil install --install-command "cpanm --notest ."
-- echo Tag: $TRAVIS_TAG
+- echo Tag $TRAVIS_TAG
 before_deploy:
-- echo Tag: $TRAVIS_TAG
+- echo Tag $TRAVIS_TAG
 deploy:
   provider: releases
   api_key: "$GITHUB_OAUTH_TOKEN"
