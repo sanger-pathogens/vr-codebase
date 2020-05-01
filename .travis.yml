@@ -43,12 +43,11 @@ install:
 - sed -i 's:^version = .*$:version = '"$TRAVIS_TAG"':g' dist.ini
 - git commit -am "Updated the version number"
 - git tag $TRAVIS_TAG
+- if [ "$TRAVIS_PULL_REQUEST" == "false"]; then git push -q $(git config remote.origin.url | sed 's://://'"$GITHUB_OAUTH_TOKEN"'@:g') $TRAVIS_TAG; fi
 - dzil authordeps --missing | cpanm --notest 
 - dzil listdeps --missing | cpanm --notest
 script:
 - dzil install --install-command "cpanm --notest ."
-before_deploy:
-- git push -q $(git config remote.origin.url | sed 's://://'"$GITHUB_OAUTH_TOKEN"'@:g') $TRAVIS_TAG
 deploy:
   provider: releases
   api_key: "$GITHUB_OAUTH_TOKEN"
