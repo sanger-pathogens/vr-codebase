@@ -46,7 +46,7 @@ install:
 - dzil listdeps --missing | cpanm --notest
 script:
 - dzil install --install-command "cpanm --notest ."
-- echo Tag $TRAVIS_TAG
+- ls -lrt
 before_deploy:
 - echo Tag $TRAVIS_TAG
 deploy:
@@ -55,3 +55,4 @@ deploy:
   file_glob: true
   file: "*.tar.gz"
   skip_cleanup: true
+  draft: true
