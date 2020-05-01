@@ -37,13 +37,14 @@ perl:
 install:
 - git config --local user.name "Pathogen Informatics CI"
 - git config --local user.email "pathdev@sanger.ac.uk"
+- export UUID=$(cat /proc/sys/kernel/random/uuid)
+- git checkout -b $UUID
 - export TIMESTAMP_VERSION=$(date -u '+%Y.%m.%d.%H.%M.%S.%3N')
-- export BRANCH_BASED_TAG=$(if [ "$TRAVIS_BRANCH" == "master" ]; then echo "v${TIMESTAMP_VERSION}"; else echo "$TRAVIS_BRANCH-${TIMESTAMP_VERSION}"; fi)
-- export EXISTING_TAG=${TRAVIS_TAG}
-- export TRAVIS_TAG=${TRAVIS_TAG:-${BRANCH_BASED_TAG}}
+- export TRAVIS_TAG=$(if [ "$TRAVIS_BRANCH" == "master" ]; then echo "v${TIMESTAMP_VERSION}"; else echo "$TRAVIS_BRANCH-${TIMESTAMP_VERSION}"; fi)
 - sed -i 's:^version = .*$:version = '"$TIMESTAMP_VERSION"':g' dist.ini
-- if [ "${EXISTING_TAG}" == "" ]; then git tag $TRAVIS_TAG; fi
-- if [ "$TRAVIS_PULL_REQUEST" == "false" ] && [ "${EXISTING_TAG}" == "" ]; then git push -q "https://${GITHUB_OAUTH_TOKEN}@github.com/${TRAVIS_REPO_SLUG}" $TRAVIS_TAG; fi
+- git commit -am "Updated the version number to $TIMESTAMP_VERSION"
+- git tag $TRAVIS_TAG
+- if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then git push -q "https://${GITHUB_OAUTH_TOKEN}@github.com/${TRAVIS_REPO_SLUG}" $TRAVIS_TAG; fi
 - dzil authordeps --missing | cpanm --notest 
 - dzil listdeps --missing | cpanm --notest
 script:

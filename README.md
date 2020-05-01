@@ -3,6 +3,7 @@ A collection of modules and scripts for processing and analysing large quantitie
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-brightgreen.svg)](https://github.com/sanger-pathogens/vr-codebase/blob/master/LICENSE)
 
+This readme is inaccurate and requires updating
 ## Contents
   * [Introduction](#introduction)
   * [Installation](#installation)
