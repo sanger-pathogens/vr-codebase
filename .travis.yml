@@ -1,6 +1,6 @@
 dist: bionic
 language: perl
-sudo: false
+os: linux
 cache:
   directories:
   - perl_modules
@@ -35,3 +35,11 @@ install:
 - dzil listdeps --missing | cpanm --notest
 script:
 - dzil install --install-command "cpanm --notest ."
+deploy:
+  provider: releases
+  api_key: "$GITHUB_OAUTH_TOKEN"
+  file_glob: true
+  file: *.tar.gz
+  skip_cleanup: true
+  on:
+    tags: true
