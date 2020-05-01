@@ -44,7 +44,7 @@ install:
 - sed -i 's:^version = .*$:version = '"$TIMESTAMP_VERSION"':g' dist.ini
 - git commit -am "Updated the version number to $TIMESTAMP_VERSION"
 - git tag $TRAVIS_TAG
-- [ "$TRAVIS_PULL_REQUEST" == "false" ] && git push -q "https://${GITHUB_OAUTH_TOKEN}@github.com/${TRAVIS_REPO_SLUG}" $TRAVIS_TAG
+- if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then git push -q "https://${GITHUB_OAUTH_TOKEN}@github.com/${TRAVIS_REPO_SLUG}" $TRAVIS_TAG; fi
 - dzil authordeps --missing | cpanm --notest 
 - dzil listdeps --missing | cpanm --notest
 script:
