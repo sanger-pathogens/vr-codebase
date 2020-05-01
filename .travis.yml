@@ -54,4 +54,5 @@ deploy:
   file: *.tar.gz
   skip_cleanup: true
   on:
-    branch: master
+    tags: false
+    all_branches: true
