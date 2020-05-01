@@ -1,29 +1,60 @@
 dist: bionic
 language: perl
+os: linux
+branches:
+  only:
+  - master
+cache:
+  directories:
+  - perl_modules
+before_install:
+- cpanm local::lib
+- eval "$(perl -Mlocal::lib=${PWD}/perl_modules)"
+- cpanm --notest Dist::Zilla
+- eval "cpanm --notest Sys::CpuLoadX || exit 0"
+- git clone https://github.com/sanger-pathogens/assembly_improvement
+- cd assembly_improvement
+- dzil authordeps --missing | cpanm --notest
+- dzil listdeps --missing | cpanm --notest
+- dzil install --install-command "cpanm --notest ."
+- cd ..
 addons:
   apt:
     packages:
-       - git
-       - wget
-       - file
-       - build-essential
-       - libssl-dev
-       - libexpat1-dev
-       - libdbd-mysql-perl
-       - cpanminus
-       - libz-dev
+    - git
+    - wget
+    - file
+    - build-essential
+    - libssl-dev
+    - libexpat1-dev
+    - libdbd-mysql-perl
+    - cpanminus
+    - libz-dev
+    - libdb-dev
 perl:
-  - "5.26"
-  - "5.30"
-before_script:
- - cpanm --notest Dist::Zilla
- - cpanm --notest Sys::CpuLoadX@0.04 || exit 0  
- - git clone https://github.com/sanger-pathogens/assembly_improvement
- - cd assembly_improvement 
- - dzil authordeps --missing | cpanm --notest 
- - dzil listdeps --missing | cpanm --notest
- - dzil install --install-command "cpanm --notest ."
+- "5.30"
+install:
+- git config --local user.name "Pathogen Informatics CI"
+- git config --local user.email "pathdev@sanger.ac.uk"
+- export UUID=$(cat /proc/sys/kernel/random/uuid)
+- git checkout -b $UUID
+- export BRANCH_BASED_TAG=$(if [ "$TRAVIS_BRANCH" == "master" ]; then echo v$(date -u '+%Y.%m.%d.%H.%M.%S.%3N'); else echo "$TRAVIS_BRANCH"-$(date -u '+%Y.%m.%d.%H.%M.%S.%3N'); fi)
+- export TRAVIS_TAG=${TRAVIS_TAG:-${BRANCH_BASED_TAG}}
+- sed -i 's:^version = .*$:version = '"$TRAVIS_TAG"':g' dist.ini
+- git commit -am "Updated the version number"
+- git tag $TRAVIS_TAG
+- dzil authordeps --missing | cpanm --notest 
+- dzil listdeps --missing | cpanm --notest
 script:
- - dzil authordeps --missing | cpanm --notest
- - dzil listdeps --missing | cpanm --notest
- - dzil install --install-command "cpanm --notest ."
+- dzil install --install-command "cpanm --notest ."
+before_deploy:
+- git push -q $(git config remote.origin.url | sed 's://://'"$GITHUB_OAUTH_TOKEN"'@:g') $TRAVIS_TAG
+deploy:
+  provider: releases
+  api_key: "$GITHUB_OAUTH_TOKEN"
+  file_glob: true
+  file: "*.tar.gz"
+  skip_cleanup: true
+  on:
+    tags: false
+    all_branches: true
