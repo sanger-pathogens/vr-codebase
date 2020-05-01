@@ -41,7 +41,9 @@ script:
 deploy:
   provider: releases
   api_key: "$GITHUB_OAUTH_TOKEN"
-  file: java_launchers-${TRAVIS_TAG}.tar.gz
+  file_glob: true
+  file: *.tar.gz
   skip_cleanup: true
   on:
-    tags: true
+    tags: false
+    all_branches: true
