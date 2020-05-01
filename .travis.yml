@@ -1,12 +1,10 @@
 dist: bionic
 language: perl
 os: linux
+if: tag IS blank
 branches:
   only:
   - master
-branches:
-  except:
-  - /^v.*$/
 cache:
   directories:
   - perl_modules
@@ -37,8 +35,6 @@ addons:
 perl:
 - "5.30"
 install:
-- echo travis tag $TRAVIS_TAG
-- env | grep TRAVIS
 - git config --local user.name "Pathogen Informatics CI"
 - git config --local user.email "pathdev@sanger.ac.uk"
 - export TIMESTAMP_VERSION=$(date -u '+%Y.%m.%d.%H.%M.%S.%3N')
