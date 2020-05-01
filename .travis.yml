@@ -45,7 +45,7 @@ install:
 - dzil authordeps --missing | cpanm --notest 
 - dzil listdeps --missing | cpanm --notest
 script:
-- dzil install --install-command "cpanm --notest ."
+- dzil build
 - ls -lrt
 before_deploy:
 - echo Tag $TRAVIS_TAG
