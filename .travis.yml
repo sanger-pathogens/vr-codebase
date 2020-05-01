@@ -48,7 +48,7 @@ install:
 - dzil authordeps --missing | cpanm --notest 
 - dzil listdeps --missing | cpanm --notest
 script:
-- dzil install --install-command "cpanm --notest ."
+- dzil install  --install-command "cpanm --notest ."
 deploy:
   provider: releases
   api_key: "$GITHUB_OAUTH_TOKEN"
