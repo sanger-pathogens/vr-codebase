@@ -239,7 +239,7 @@ sub map_back_provides
  	   push(@provided_files, $self->{lane_path}."/".$self->{prefix}.$self->{assembler}.'_map_back_done');
  	   return \@provided_files;
     }
-   }   
+   }
 
    return $self->cleanup_provides();
 }
@@ -330,7 +330,7 @@ sub optimise_parameters_provides
 	   push(@provided_files, $self->{lane_path}."/".$self->{prefix}."$self->{assembler}_optimise_parameters_done");
 	   return \@provided_files;
    }
-  }   
+  }
 
   return $self->cleanup_provides();
 }
@@ -361,24 +361,24 @@ sub optimise_parameters
     my $tmp_directory = $self->{tmp_directory}.'/'.$self->{prefix}.$self->{assembler}.'_'.$lane_names->[0] || getcwd();
     my $pipeline_version = join('/',($output_directory, $self->{assembler}.'_assembly','pipeline_version_'.$self->{pipeline_version}));
     my $contigs_base_name = $self->generate_contig_base_name();
-	
+
 	my $spades_options = '';
 	if($self->{assembler} eq 'spades')
 	{
 		if(defined($self->{spades_kmer_opts}))
 		{
-			$spades_options .= qq{          
+			$spades_options .= qq{
 				  spades_kmer_opts => qq[$self->{spades_kmer_opts}],
 			};
 		}
 		if(defined($self->{spades_opts}))
 		{
-			$spades_options .= qq{          
+			$spades_options .= qq{
 				  spades_opts => qq[$self->{spades_opts}],
-			};	    	      
+			};
 		}
 	}
-	
+
 	my $iva_options = '';
 	if($self->{assembler} eq 'iva')
 	{
@@ -510,7 +510,7 @@ sub assembly_improvement_provides
 	   push(@provided_files, $self->{lane_path}."/".$self->{prefix}."$self->{assembler}_assembly_improvement_done");
 	   return \@provided_files;
    }
-  }   
+  }
 
   return $self->cleanup_provides();
 }
@@ -614,7 +614,7 @@ sub iva_qc_provides
 	       return  [$self->{lane_path}."/".$self->{prefix}."$self->{assembler}_iva_qc_done"];
 	     }
      }
-    }   
+    }
 
     return [];
 }
@@ -735,7 +735,9 @@ sub map_and_filter_perfect_pairs
   my $mapper = VertRes::Wrapper::smalt->new();
   $mapper->setup_custom_reference_index($reference,'-k 13 -s 4','small');
 
-  `smalt map -x -i 3000 -f samsoft -y 0.95 -o $working_directory/contigs.mapped.sam $reference.small $working_directory/forward.fastq $working_directory/reverse.fastq`;
+  my $smalt_seed_arg = (defined $ENV{'ASSEMBLY_SMALT_SEED_VALUE'}) ? "-r ".$ENV{'ASSEMBLY_SMALT_SEED_VALUE'} : "";
+
+  `smalt map -x -i 3000 -f samsoft -y 0.95 $smalt_seed_arg -o $working_directory/contigs.mapped.sam $reference.small $working_directory/forward.fastq $working_directory/reverse.fastq`;
   $self->throw("Sam file not created") unless(-e "$working_directory/contigs.mapped.sam");
 
   `samtools faidx $reference`;
@@ -1131,7 +1133,7 @@ sub pool_fastqs_provides
 		   push(@provided_files, $self->{lane_path}.'/'.$self->{prefix}.$self->{assembler}.'_pool_fastqs_done');
 		   return \@provided_files;
 	   }
-   }   
+   }
 
    return $self->cleanup_provides();
 }
@@ -1349,7 +1351,7 @@ sub cleanup {
       }
     }
   }
-  
+
   # remove unneeded done files
   for my $file ('_map_back_done','_optimise_parameters_done', '_assembly_improvement_done', '_iva_qc_done', '_pool_fastqs_done')
 	{
@@ -1358,7 +1360,7 @@ sub cleanup {
 		{
 			unlink($to_remove) or $self->throw("Error unlink $to_remove");
 		}
-	}  
+	}
 
     for my $file ($self->{prefix}."assembly_update_db_done")
   	{
@@ -1367,7 +1369,7 @@ sub cleanup {
   		{
   			unlink($to_remove) or $self->throw("Error unlink $to_remove");
   		}
-  	}  
+  	}
 
   Utils::CMD("touch ".$self->{fsu}->catfile($lane_path,"$self->{prefix}assembly_cleanup_done")   );
   $self->update_file_permissions($lane_path);
@@ -1410,7 +1412,7 @@ sub update_db_provides {
   	   push(@provided_files, $self->{lane_path}."/".$self->{prefix}."assembly_update_db_done");
   	   return \@provided_files;
      }
-    }   
+    }
 
     return $self->cleanup_provides();
 }
