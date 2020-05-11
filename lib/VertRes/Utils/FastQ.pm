@@ -31,7 +31,8 @@ use File::Basename;
 use VertRes::Parser::fastqcheck;
 use VertRes::Parser::fastq;
 use Cwd 'abs_path';
-use Inline C => Config => FILTERS => 'Strip_POD';
+use Inline C => Config => FILTERS => 'Strip_POD' =>
+      enable => 'UNTAINT';
 
 use base qw(VertRes::Base);
 
