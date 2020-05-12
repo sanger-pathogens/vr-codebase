@@ -167,7 +167,7 @@ sub parse_bjobs_l
     if ( $i>=@$lines ) { Utils::error("Could not parse bjobs -l output: ", join('',@$lines)); }
 
     my $job_info = $$lines[$i++]; chomp($job_info);
-    while ( $i<@$lines && $$lines[$i]=~/^\s{21}?/ ) 
+    while ( $i<@$lines && $$lines[$i]=~/^\s{21}/ ) 
     { 
         $job_info .= $';
         chomp($job_info);

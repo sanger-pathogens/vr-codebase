@@ -270,7 +270,7 @@ sub copy {
         return 0;
     }
     
-    my $rsync = File::Rsync->new({archive => 1, compress => 1, checksum => 1, 'copy-unsafe-links' => 1});
+    my $rsync = File::Rsync->new(archive => 1, compress => 1, checksum => 1, 'copy-unsafe-links' => 1);
     
     if (-d $source) {
         unless (-d $tmp_dest) {

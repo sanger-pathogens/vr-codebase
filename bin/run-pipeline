@@ -2724,7 +2724,7 @@ sub setup_or_reuse_db_connection
 	}
 	else
 	{
-		return VRTrack::VRTrack->new($$config_data{db}) or croak("Could not connect to the database: $config\n");
+		return VRTrack::VRTrack->new($$config_data{db}) || croak("Could not connect to the database: $config\n");
 	}
 }
 
