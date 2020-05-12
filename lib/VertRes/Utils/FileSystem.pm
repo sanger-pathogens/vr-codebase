@@ -270,7 +270,7 @@ sub copy {
         return 0;
     }
     
-    my $rsync = File::Rsync->new({archive => 1, compress => 1, checksum => 1, 'copy-unsafe-links' => 1});
+    my $rsync = File::Rsync->new(archive => 1, compress => 1, checksum => 1, 'copy-unsafe-links' => 1);
     
     if (-d $source) {
         unless (-d $tmp_dest) {
@@ -283,13 +283,13 @@ sub copy {
             return 0;
         }
         
-        my $ok = $rsync->exec({src => $source.'/', dest => $tmp_dest});
+        my $ok = $rsync->exec(src => $source.'/', dest => $tmp_dest);
         # Run it again, sometimes it fails.
-        $ok = $rsync->exec({src => $source.'/', dest => $tmp_dest});
+        $ok = $rsync->exec(src => $source.'/', dest => $tmp_dest);
         if ($ok) {
             # we run it again; with the checksum option this should hopefully
             # ensure the copy is perfect
-            $ok = $rsync->exec({src => $source.'/', dest => $tmp_dest});
+            $ok = $rsync->exec(src => $source.'/', dest => $tmp_dest);
         }
         else {
             $self->warn("rsync copy of $source to $tmp_dest failed");
@@ -317,7 +317,7 @@ sub copy {
         }
         
         for (1..$max_retries) {
-            my $success = $rsync->exec({src => $source, dest => $tmp_dest});
+            my $success = $rsync->exec(src => $source, dest => $tmp_dest);
             if ($success) {
                 my $diff = `diff $source $tmp_dest`;
                 unless ($diff) {
