@@ -61,7 +61,8 @@ use Inline C => Config => FILTERS => 'Strip_POD' =>
            LIBS => "-L$ENV{SAMTOOLS} -lbam -lz" =>
            CCFLAGS => '-D_IOLIB=2 -D_FILE_OFFSET_BITS=64' =>
 	   enable => 'UNTAINT' =>
-           DIRECTORY => $ENV{PERL_INLINE_DIRECTORY};
+           DIRECTORY => $ENV{PERL_INLINE_DIRECTORY} =>
+	   no_untaint_warn => 1;
 
 use base qw(VertRes::Parser::ParserI);
 
