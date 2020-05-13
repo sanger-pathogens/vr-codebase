@@ -33,7 +33,8 @@ use VertRes::Parser::fastq;
 use Cwd 'abs_path';
 use Inline C => Config => FILTERS => 'Strip_POD' =>
       enable => 'UNTAINT' =>
-      DIRECTORY => $ENV{PERL_INLINE_DIRECTORY};
+      DIRECTORY => $ENV{PERL_INLINE_DIRECTORY} =>
+      no_untaint_warn => 1;
 
 use base qw(VertRes::Base);
 
