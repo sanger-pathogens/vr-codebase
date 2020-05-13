@@ -54,4 +54,4 @@ deploy:
   token: "$GITHUB_OAUTH_TOKEN"
   file_glob: true
   file: "*.tar.gz"
-  cleanup: false
+  skip_cleanup: true
