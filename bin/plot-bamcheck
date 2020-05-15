@@ -750,7 +750,7 @@ sub plot_qualities
         for (my $iqual=1; $iqual<@$cycle; $iqual++) { print $fh "\t$$cycle[$iqual]"; }
         print $fh "\n";
     }
-    print $fh "end\nend\n";
+    print $fh "end\n";
     
     if ( $is_paired )
     {
@@ -776,7 +776,7 @@ sub plot_qualities
           for (my $iqual=1; $iqual<@$cycle; $iqual++) { print $fh "\t$$cycle[$iqual]"; }
           print $fh "\n";
       }
-      print $fh "end\nend\n";
+      print $fh "end\n";
     }
     close($fh);
     plot($$args{gp});
