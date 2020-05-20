@@ -368,7 +368,7 @@ sub _sort_and_merge_and_generate_final_output {
         throw Pathogens::Variant::Exception::File({text => "Could not open output filehandle to write pseudo_reference" . $!});
     }
 
-    my $pipecmd = "/bin/bash -o pipefail -c 'sort -d -k1,1 $temporary_tab_delimited_pseudo_reference_file | cut -f 2 | tr -d '\n' | fold -w 60' |";
+    my $pipecmd = "/bin/bash -o pipefail -c \"sort -d -k1,1 $temporary_tab_delimited_pseudo_reference_file | cut -f 2 | tr -d '\n' | fold -w 60\" |";
     $logger->debug($pipecmd);
 
     my $fhd_pipe;
