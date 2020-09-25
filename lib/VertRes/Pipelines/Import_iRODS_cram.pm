@@ -294,7 +294,9 @@ sub get_files {
   ];
 
     close($fh);
-    VertRes::LSF::run( $lock_file, $work_dir, "${prefix}import_files", $self, qq[perl -w ${prefix}import_files.pl] );
+    VertRes::LSF::run( $lock_file, $work_dir, "${prefix}import_files", 
+      { bsub_opts => " -R 'rusage[seqirods=20]' " }, 
+      qq[perl -w ${prefix}import_files.pl] );
 
     return $$self{No};
 }
